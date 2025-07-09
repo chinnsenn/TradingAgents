@@ -10,19 +10,6 @@
   <br>
   <a href="https://github.com/TauricResearch/" target="_blank"><img alt="Community" src="https://img.shields.io/badge/Join_GitHub_Community-TauricResearch-14C290?logo=discourse"/></a>
 </div>
-
-<div align="center">
-  <!-- Keep these links. Translations will automatically update with the README. -->
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=de">Deutsch</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=es">Español</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=fr">français</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=ja">日本語</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=ko">한국어</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=pt">Português</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=ru">Русский</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=zh">中文</a>
-</div>
-
 ---
 
 # TradingAgents: Multi-Agents LLM Financial Trading Framework 
@@ -43,7 +30,7 @@
 
 <div align="center">
 
-🚀 [TradingAgents](#tradingagents-framework) | ⚡ [Installation & CLI](#installation-and-cli) | 🎬 [Demo](https://www.youtube.com/watch?v=90gr5lwjIho) | 📦 [Package Usage](#tradingagents-package) | 🤝 [Contributing](#contributing) | 📄 [Citation](#citation)
+🚀 [TradingAgents](#tradingagents-framework) | ⚡ [Installation & Usage](#installation-and-usage) | 🎬 [Demo](https://www.youtube.com/watch?v=90gr5lwjIho) | 🖥️ [GUI Interface](#1-graphical-user-interface-gui) | 📦 [Package Usage](#tradingagents-package) | 🤝 [Contributing](#contributing) | 📄 [Citation](#citation)
 
 </div>
 
@@ -91,7 +78,7 @@ Our framework decomposes complex trading tasks into specialized roles. This ensu
   <img src="assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
 </p>
 
-## Installation and CLI
+## Installation and Usage
 
 ### Installation
 
@@ -112,24 +99,111 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-### Required APIs
+### Configuration
 
-You will also need the FinnHub API for financial data. All of our code is implemented with the free tier.
+#### Environment Variables
+
+You can configure your API keys using environment variables or a `.env` file:
+
+Create a `.env` file in the root directory (use `.env.example` as a template):
+```bash
+# FinnHub API for financial data (free tier supported)
+FINNHUB_API_KEY=your_finnhub_api_key
+```
+
+Or set it directly as environment variable:
 ```bash
 export FINNHUB_API_KEY=$YOUR_FINNHUB_API_KEY
 ```
 
-You will need the OpenAI API for all the agents.
+#### LLM Provider Configuration
+
+TradingAgents uses a JSON configuration file to manage LLM providers. The `llm_provider.json` file is **required** and serves as the single source of truth for all LLM provider settings.
+
+**Create the `llm_provider.json` file from the example template:**
+
 ```bash
-export OPENAI_API_KEY=$YOUR_OPENAI_API_KEY
+cp llm_provider.json.example llm_provider.json
 ```
 
-### CLI Usage
+Then edit the file to add your API keys and configure your preferred models:
 
-You can also try out the CLI directly by running:
+```json
+{
+  "Providers": [
+    {
+      "name": "openrouter",
+      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
+      "api_key": "sk-xxx",
+      "models": [
+        "google/gemini-2.5-pro-preview",
+        "anthropic/claude-sonnet-4",
+        "anthropic/claude-3.5-sonnet"
+      ]
+    },
+    {
+      "name": "deepseek",
+      "api_base_url": "https://api.deepseek.com/chat/completions",
+      "api_key": "sk-xxx",
+      "models": ["deepseek-chat", "deepseek-reasoner"]
+    },
+    {
+      "name": "ollama",
+      "api_base_url": "http://localhost:11434/v1/chat/completions",
+      "api_key": "ollama",
+      "models": ["qwen2.5-coder:latest"]
+    }
+  ]
+}
+```
+
+**Configuration Behavior:**
+- **Default Selection**: The system automatically uses the **first provider** and **first model** from the JSON file as defaults
+- **GUI Integration**: The Gradio interface loads provider and model options directly from this file
+- **CLI Integration**: The command-line interface uses the same configuration source
+- **No Fallbacks**: If the file is missing or invalid, the system will **not start** and will display a clear error message
+
+**Important Notes:**
+- The `llm_provider.json` file is **required** for the system to function
+- All interfaces (GUI, CLI, Python package) use this single configuration source
+- No environment variables or hardcoded defaults are used for LLM provider configuration
+- The first provider in the array becomes the default selection
+- The first model in each provider's model list becomes the default for that provider
+
+**Supported LLM providers include:**
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo, O1 series
+- **Anthropic**: Claude models (via OpenRouter)
+- **DeepSeek**: DeepSeek Chat, DeepSeek Reasoner
+- **Google**: Gemini models
+- **Local Models**: Via Ollama, LM Studio, or other OpenAI-compatible APIs
+- **Custom Providers**: Any OpenAI-compatible API endpoint
+
+### Usage Options
+
+TradingAgents offers multiple interfaces to suit different user preferences:
+
+#### 1. Graphical User Interface (GUI)
+
+Launch the modern Gradio-based web interface:
+```bash
+python launch_gradio.py
+```
+
+The GUI provides:
+- Interactive stock analysis with real-time updates
+- Historical analysis records and result management
+- Progress tracking with visual indicators
+- Formatted reports with syntax highlighting
+- Multi-language support (English/Chinese)
+- **Automatic LLM configuration**: Defaults to the first provider and model from `llm_provider.json`
+
+#### 2. Command Line Interface (CLI)
+
+For command-line enthusiasts:
 ```bash
 python -m cli.main
 ```
+
 You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
 
 <p align="center">
@@ -146,13 +220,7 @@ An interface will appear showing results as they load, letting you track the age
   <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
-## TradingAgents Package
-
-### Implementation Details
-
-We built TradingAgents with LangGraph to ensure flexibility and modularity. We utilize `o1-preview` and `gpt-4o` as our deep thinking and fast thinking LLMs for our experiments. However, for testing purposes, we recommend you use `o4-mini` and `gpt-4.1-mini` to save on costs as our framework makes **lots of** API calls.
-
-### Python Usage
+#### 3. Python Package Usage
 
 To use TradingAgents inside your code, you can import the `tradingagents` module and initialize a `TradingAgentsGraph()` object. The `.propagate()` function will return a decision. You can run `main.py`, here's also a quick example:
 
@@ -191,6 +259,40 @@ print(decision)
 > For `online_tools`, we recommend enabling them for experimentation, as they provide access to real-time data. The agents' offline tools rely on cached data from our **Tauric TradingDB**, a curated dataset we use for backtesting. We're currently in the process of refining this dataset, and we plan to release it soon alongside our upcoming projects. Stay tuned!
 
 You can view the full list of configurations in `tradingagents/default_config.py`.
+
+**Note**: LLM provider configuration is managed exclusively through the `llm_provider.json` file.
+
+### Quick Start Guide
+
+1. **Clone the repository**: `git clone https://github.com/TauricResearch/TradingAgents.git`
+2. **Install dependencies**: `pip install -r requirements.txt`  
+3. **Set up environment**: Add `FINNHUB_API_KEY` to `.env` file
+4. **Configure LLM providers**: Copy and edit the example file: `cp llm_provider.json.example llm_provider.json`
+5. **Launch interface**: 
+   - GUI: `python launch_gradio.py`
+   - CLI: `python -m cli.main`
+   - Python: Import and use `TradingAgentsGraph`
+
+**The system will automatically use the first provider and model from your JSON configuration as defaults.**
+
+## TradingAgents Package
+
+### Implementation Details
+
+We built TradingAgents with LangGraph to ensure flexibility and modularity. We utilize `o1-preview` and `gpt-4o` as our deep thinking and fast thinking LLMs for our experiments. However, for testing purposes, we recommend you use `o4-mini` and `gpt-4.1-mini` to save on costs as our framework makes **lots of** API calls.
+
+### Features
+
+- **Unified Configuration**: Single JSON file (`llm_provider.json`) for all LLM provider settings
+- **Smart Defaults**: Automatically selects first provider and model from configuration as defaults
+- **Multi-Interface Support**: Choose between GUI, CLI, or Python package integration
+- **Environment Configuration**: Flexible API key management via `.env` files or environment variables (for data sources only)
+- **Real-time Analysis**: Live market data processing with progress tracking
+- **Historical Records**: Analysis result storage and retrieval system
+- **Multi-language Support**: English and Chinese language interfaces
+- **Customizable Configuration**: Adjustable LLM models, debate rounds, and analysis depth
+- **Report Formatting**: Syntax-highlighted analysis reports with structured output
+- **Error Prevention**: Clear error messages when configuration is missing or invalid
 
 ## Contributing
 

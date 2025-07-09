@@ -1,0 +1,538 @@
+/* TradingAgents Gradio Interface Styles */
+
+/* Main containers */
+.progress-container {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #dee2e6;
+}
+
+.report-container {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #dee2e6;
+}
+
+.report-header {
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.report-header h2 {
+    margin: 0;
+    color: #007bff;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.report-timestamp {
+    color: #6c757d;
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+.report-content {
+    line-height: 1.6;
+    color: #333;
+}
+
+/* Team sections */
+.team-section {
+    background: #f8f9fa;
+    border-left: 4px solid #007bff;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.team-section h4 {
+    margin: 0 0 10px 0;
+    color: #007bff;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.team-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.team-section li {
+    padding: 5px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.team-section li:last-child {
+    border-bottom: none;
+}
+
+/* Status indicators */
+.status-completed {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.status-completed::before {
+    content: "✅ ";
+    margin-right: 5px;
+}
+
+.status-in-progress {
+    color: #ffc107;
+    font-weight: 600;
+    animation: pulse 2s infinite;
+}
+
+.status-in-progress::before {
+    content: "⏳ ";
+    margin-right: 5px;
+}
+
+.status-pending {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.status-pending::before {
+    content: "⏸️ ";
+    margin-right: 5px;
+}
+
+/* Progress bars */
+.progress-bar-container {
+    background: #e9ecef;
+    border-radius: 10px;
+    height: 24px;
+    position: relative;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #28a745 0%, #34ce57 100%);
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Team status compact */
+.team-status-compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.team-item {
+    flex: 1;
+    min-width: 120px;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.team-name {
+    font-weight: 600;
+    color: #007bff;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.team-progress {
+    position: relative;
+    background: #e9ecef;
+    border-radius: 6px;
+    height: 16px;
+    overflow: hidden;
+}
+
+.team-progress-bar {
+    background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+
+.team-progress-text {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
+    color: #495057;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Decision highlights */
+.decision-highlight {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin: 20px 0;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.decision-highlight div {
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Bull/Bear sections */
+.bull-section {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-left: 4px solid #28a745;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.bull-section h3 {
+    color: #155724;
+    margin: 0 0 10px 0;
+}
+
+.bear-section {
+    background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
+    border-left: 4px solid #dc3545;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.bear-section h3 {
+    color: #721c24;
+    margin: 0 0 10px 0;
+}
+
+.manager-decision {
+    background: linear-gradient(135deg, #d1ecf1 0%, #b8daff 100%);
+    border-left: 4px solid #007bff;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.manager-decision h3 {
+    color: #004085;
+    margin: 0 0 10px 0;
+}
+
+/* News items */
+.news-item {
+    background: #f8f9fa;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.news-headline {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.news-source {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Financial metrics */
+.financial-metric {
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    margin: 0 2px;
+}
+
+/* Action items */
+.action-items {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.action-items h4 {
+    color: #856404;
+    margin: 0 0 10px 0;
+}
+
+.recommendations {
+    background: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.recommendations h4 {
+    color: #0c5460;
+    margin: 0 0 10px 0;
+}
+
+.risks {
+    background: #f8d7da;
+    border-left: 4px solid #dc3545;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.risks h4 {
+    color: #721c24;
+    margin: 0 0 10px 0;
+}
+
+/* Tables */
+.analysis-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.analysis-table th {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.analysis-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.analysis-table tr:hover {
+    background: #f8f9fa;
+}
+
+.analysis-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Error containers */
+.error-container {
+    background: linear-gradient(135deg, #f8d7da 0%, #f1b0b7 100%);
+    color: #721c24;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #f5c6cb;
+    margin: 15px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.error-header h3 {
+    margin: 0 0 10px 0;
+    color: #721c24;
+}
+
+.error-content {
+    line-height: 1.6;
+}
+
+/* Summary components */
+.summary-report {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.summary-header {
+    text-align: center;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #007bff;
+}
+
+.summary-header h2 {
+    margin: 0;
+    color: #007bff;
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.summary-date {
+    color: #6c757d;
+    font-size: 1rem;
+    margin-top: 5px;
+}
+
+.summary-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.summary-card {
+    flex: 1;
+    min-width: 200px;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    text-align: center;
+}
+
+.card-title {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #333;
+}
+
+.summary-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.summary-section h3 {
+    color: #007bff;
+    margin: 0 0 10px 0;
+    font-size: 1.2rem;
+}
+
+.summary-content {
+    line-height: 1.6;
+    color: #333;
+}
+
+/* Animations */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .team-status-compact {
+        flex-direction: column;
+    }
+    
+    .summary-cards {
+        flex-direction: column;
+    }
+    
+    .progress-container {
+        padding: 15px;
+    }
+    
+    .report-container {
+        padding: 15px;
+    }
+}
+
+/* Placeholder styles */
+.report-placeholder {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+    font-style: italic;
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.report-placeholder::before {
+    content: "⏳ ";
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+/* Live updates styling */
+.live-updates {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    margin: 10px 0;
+    border: 1px solid #dee2e6;
+}
+
+.live-updates h3 {
+    margin: 0 0 15px 0;
+    color: #007bff;
+    font-size: 1.2rem;
+}
+
+.live-update-item {
+    margin: 8px 0;
+    padding: 8px;
+    background: white;
+    border-radius: 4px;
+    border-left: 3px solid #007bff;
+    font-size: 0.9rem;
+}
+
+.live-update-timestamp {
+    font-size: 0.8em;
+    color: #6c757d;
+    font-weight: 600;
+}
+
+.live-update-content {
+    margin-top: 3px;
+    line-height: 1.4;
+}

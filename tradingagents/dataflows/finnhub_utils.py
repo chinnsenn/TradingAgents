@@ -2,6 +2,9 @@ import json
 import os
 
 
+import logging
+
+
 def get_data_in_range(ticker, start_date, end_date, data_type, data_dir, period=None):
     """
     Gets finnhub data saved and processed on disk.
@@ -25,6 +28,7 @@ def get_data_in_range(ticker, start_date, end_date, data_type, data_dir, period=
             data_dir, "finnhub_data", data_type, f"{ticker}_data_formatted.json"
         )
 
+    logging.info(f"Loading FinnHub data from {data_path}")
     data = open(data_path, "r")
     data = json.load(data)
 
@@ -33,4 +37,6 @@ def get_data_in_range(ticker, start_date, end_date, data_type, data_dir, period=
     for key, value in data.items():
         if start_date <= key <= end_date and len(value) > 0:
             filtered_data[key] = value
+
+    logging.info(f"Filtered {len(filtered_data)} records from FinnHub data")
     return filtered_data

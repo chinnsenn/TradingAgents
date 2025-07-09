@@ -469,7 +469,7 @@ def get_user_selections():
             "Step 5: OpenAI backend", "Select which service to talk to"
         )
     )
-    selected_llm_provider, backend_url = select_llm_provider()
+    selected_llm_provider, backend_url, api_key = select_llm_provider()
     
     # Step 6: Thinking agents
     console.print(
@@ -487,6 +487,7 @@ def get_user_selections():
         "research_depth": selected_research_depth,
         "llm_provider": selected_llm_provider.lower(),
         "backend_url": backend_url,
+        "api_key": api_key,
         "shallow_thinker": selected_shallow_thinker,
         "deep_thinker": selected_deep_thinker,
     }
@@ -742,6 +743,7 @@ def run_analysis():
     config["quick_think_llm"] = selections["shallow_thinker"]
     config["deep_think_llm"] = selections["deep_thinker"]
     config["backend_url"] = selections["backend_url"]
+    config["api_key"] = selections["api_key"]
     config["llm_provider"] = selections["llm_provider"].lower()
 
     # Initialize the graph

@@ -1,9 +1,10 @@
 # TradingAgents/graph/trading_graph.py
 
 import os
+import logging
 from pathlib import Path
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, Any, Tuple, List, Optional
 
 from langchain_openai import ChatOpenAI
@@ -21,12 +22,24 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.dataflows.interface import set_config
+from config_utils import get_provider_info
 
 from .conditional_logic import ConditionalLogic
 from .setup import GraphSetup
 from .propagation import Propagator
 from .reflection import Reflector
 from .signal_processing import SignalProcessor
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('tradingagents.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
 class TradingAgentsGraph:
@@ -46,7 +59,29 @@ class TradingAgentsGraph:
             config: Configuration dictionary. If None, uses default config
         """
         self.debug = debug
-        self.config = config or DEFAULT_CONFIG
+        self.config = config or DEFAULT_CONFIG.copy()
+        
+        # 从 llm_provider.json 加载LLM配置
+        try:
+            from config_utils import get_default_provider, get_default_model
+            
+            # 如果配置中没有指定LLM设置，从JSON文件加载
+            if "llm_provider" not in self.config:
+                default_provider = get_default_provider()
+                self.config["llm_provider"] = default_provider
+                
+            if "deep_think_llm" not in self.config:
+                self.config["deep_think_llm"] = get_default_model(self.config["llm_provider"])
+                
+            if "quick_think_llm" not in self.config:
+                self.config["quick_think_llm"] = get_default_model(self.config["llm_provider"])
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to load LLM configuration from llm_provider.json: {e}")
+            raise RuntimeError("LLM configuration required. Please ensure llm_provider.json exists and is properly configured.")
+
+        logger.info(f"🚀 Initializing TradingAgentsGraph with config: provider={self.config.get('llm_provider')}, "
+                   f"deep_model={self.config.get('deep_think_llm')}, quick_model={self.config.get('quick_think_llm')}")
 
         # Update the interface's config
         set_config(self.config)
@@ -57,18 +92,8 @@ class TradingAgentsGraph:
             exist_ok=True,
         )
 
-        # Initialize LLMs
-        if self.config["llm_provider"].lower() == "openai" or self.config["llm_provider"] == "ollama" or self.config["llm_provider"] == "openrouter":
-            self.deep_thinking_llm = ChatOpenAI(model=self.config["deep_think_llm"], base_url=self.config["backend_url"])
-            self.quick_thinking_llm = ChatOpenAI(model=self.config["quick_think_llm"], base_url=self.config["backend_url"])
-        elif self.config["llm_provider"].lower() == "anthropic":
-            self.deep_thinking_llm = ChatAnthropic(model=self.config["deep_think_llm"], base_url=self.config["backend_url"])
-            self.quick_thinking_llm = ChatAnthropic(model=self.config["quick_think_llm"], base_url=self.config["backend_url"])
-        elif self.config["llm_provider"].lower() == "google":
-            self.deep_thinking_llm = ChatGoogleGenerativeAI(model=self.config["deep_think_llm"])
-            self.quick_thinking_llm = ChatGoogleGenerativeAI(model=self.config["quick_think_llm"])
-        else:
-            raise ValueError(f"Unsupported LLM provider: {self.config['llm_provider']}")
+        # Initialize LLMs with dynamic configuration
+        self._initialize_llms()
         
         self.toolkit = Toolkit(config=self.config)
 
@@ -108,6 +133,129 @@ class TradingAgentsGraph:
 
         # Set up the graph
         self.graph = self.graph_setup.setup_graph(selected_analysts)
+        
+        logger.info("✅ TradingAgentsGraph initialization completed successfully")
+
+    def _initialize_llms(self):
+        """Initialize LLM instances with dynamic configuration and logging."""
+        provider = self.config["llm_provider"]
+        deep_model = self.config["deep_think_llm"]
+        quick_model = self.config["quick_think_llm"]
+        
+        logger.info(f"🤖 Initializing LLMs for provider: {provider}")
+        
+        try:
+            # 获取提供商信息
+            provider_info = get_provider_info(provider)
+            if not provider_info:
+                raise ValueError(f"Provider '{provider}' not found in llm_provider.json configuration")
+            
+            api_base_url = provider_info["api_base_url"]
+            api_key = provider_info["api_key"]
+            logger.info(f"📡 Using API base URL: {api_base_url}")
+            
+            # 更新配置
+            self.config["backend_url"] = api_base_url
+            self.config["api_key"] = api_key
+
+            # 初始化LLM实例
+            if provider.lower() in ["openai", "ollama", "openrouter", "onehub", "lmstudio"]:
+                logger.info(f"🔧 Creating OpenAI-compatible LLMs - Deep: {deep_model}, Quick: {quick_model}")
+                
+                # 创建带日志记录的LLM实例
+                self.deep_thinking_llm = self._create_logged_openai_llm(
+                    model=deep_model, 
+                    base_url=api_base_url,
+                    api_key=api_key,
+                    llm_type="deep_thinking"
+                )
+                self.quick_thinking_llm = self._create_logged_openai_llm(
+                    model=quick_model, 
+                    base_url=api_base_url,
+                    api_key=api_key,
+                    llm_type="quick_thinking"
+                )
+                
+            elif provider.lower() == "anthropic":
+                logger.info(f"🔧 Creating Anthropic LLMs - Deep: {deep_model}, Quick: {quick_model}")
+                self.deep_thinking_llm = ChatAnthropic(
+                    model=deep_model, 
+                    base_url=api_base_url,
+                    api_key=api_key
+                )
+                self.quick_thinking_llm = ChatAnthropic(
+                    model=quick_model, 
+                    base_url=api_base_url,
+                    api_key=api_key
+                )
+                
+            elif provider.lower() == "google":
+                logger.info(f"🔧 Creating Google LLMs - Deep: {deep_model}, Quick: {quick_model}")
+                self.deep_thinking_llm = ChatGoogleGenerativeAI(
+                    model=deep_model,
+                    google_api_key=api_key
+                )
+                self.quick_thinking_llm = ChatGoogleGenerativeAI(
+                    model=quick_model,
+                    google_api_key=api_key
+                )
+            else:
+                error_msg = f"Unsupported LLM provider: {provider}"
+                logger.error(f"❌ {error_msg}")
+                raise ValueError(error_msg)
+                
+            logger.info("✅ LLM initialization completed successfully")
+            
+        except Exception as e:
+            error_msg = f"Failed to initialize LLMs: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            raise RuntimeError(error_msg) from e
+
+    def _create_logged_openai_llm(self, model: str, base_url: str, api_key: str, llm_type: str):
+        """Create OpenAI LLM with logging wrapper."""
+        
+        class LoggedChatOpenAI:
+            def __init__(self, model: str, base_url: str, api_key: str, llm_type: str):
+                self.llm_type = llm_type
+                self.model = model
+                self.base_url = base_url
+                self.api_key = api_key
+                self._llm = ChatOpenAI(
+                    model=model,
+                    base_url=base_url,
+                    api_key=api_key
+                )
+                
+            def invoke(self, input, config=None, **kwargs):
+                """Invoke with logging."""
+                start_time = datetime.now()
+                logger.info(f"🔄 [{self.llm_type}] LLM调用开始 - 模型: {self.model} | 输入长度: {len(str(input))}")
+                
+                try:
+                    result = self._llm.invoke(input, config, **kwargs)
+                    duration = (datetime.now() - start_time).total_seconds()
+                    
+                    logger.info(f"✅ [{self.llm_type}] LLM调用成功 - "
+                              f"耗时: {duration:.2f}s | 输出长度: {len(str(result.content))}")
+                    
+                    return result
+                    
+                except Exception as e:
+                    duration = (datetime.now() - start_time).total_seconds()
+                    logger.error(f"❌ [{self.llm_type}] LLM调用失败 - "
+                               f"耗时: {duration:.2f}s | 错误: {str(e)}")
+                    raise
+                    
+            def __getattr__(self, name):
+                """Delegate other attributes to the underlying LLM."""
+                return getattr(self._llm, name)
+        
+        return LoggedChatOpenAI(
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            llm_type=llm_type
+        )
 
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         """Create tool nodes for different data sources."""

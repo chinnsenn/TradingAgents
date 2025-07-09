@@ -8,11 +8,11 @@ DEFAULT_CONFIG = {
         os.path.abspath(os.path.join(os.path.dirname(__file__), ".")),
         "dataflows/data_cache",
     ),
-    # LLM settings
-    "llm_provider": "openai",
-    "deep_think_llm": "o4-mini",
-    "quick_think_llm": "gpt-4o-mini",
-    "backend_url": "https://api.openai.com/v1",
+    # LLM settings - configured via llm_provider.json
+    # "llm_provider": configured dynamically from llm_provider.json
+    # "deep_think_llm": configured dynamically from llm_provider.json
+    # "quick_think_llm": configured dynamically from llm_provider.json
+    # "backend_url": configured dynamically from llm_provider.json
     # Debate and discussion settings
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
