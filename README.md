@@ -1,3 +1,5 @@
+# 🔔 本项目为 Fork 项目 | This is a Fork Project
+
 <p align="center">
   <img src="assets/TauricResearch.png" style="width: 60%; height: auto;">
 </p>
@@ -17,6 +19,8 @@
 > 🎉 **TradingAgents** officially released! We have received numerous inquiries about the work, and we would like to express our thanks for the enthusiasm in our community.
 >
 > So we decided to fully open-source the framework. Looking forward to building impactful projects with you!
+
+📖 **[中文文档](README_cn.md) | [English Documentation](README.md)**
 
 <div align="center">
 <a href="https://www.star-history.com/#TauricResearch/TradingAgents&Date">
