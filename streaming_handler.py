@@ -302,6 +302,3 @@ class StreamingHandler:
         status_lines.append(f"**Reports Generated:** {summary['reports_generated']}/7")
         
         return "\n".join(status_lines)
-
-# Global streaming handler instance
-streaming_handler = StreamingHandler()

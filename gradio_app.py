@@ -20,19 +20,21 @@ from gradio_utils import (
 )
 from streaming_handler import StreamingHandler
 
-# Global variables for analysis state
-analysis_state = {
-    "running": False,
-    "current_ticker": None,
-    "current_date": None,
-    "results": {},
-    "progress": {},
-    "error": None
-}
-
-streaming_handler = StreamingHandler()
+# Session state initialization function
+def init_session_state():
+    """Initialize session state for a new user."""
+    return {
+        "running": False,
+        "current_ticker": None,
+        "current_date": None,
+        "results": {},
+        "progress": {},
+        "error": None,
+        "streaming_handler": StreamingHandler()
+    }
 
 def start_analysis(
+    session_state: dict,
     ticker: str,
     analysis_date: datetime.datetime,
     selected_analysts: List[str],
@@ -42,17 +44,21 @@ def start_analysis(
     max_debate_rounds: int,
     online_tools: bool,
     progress=gr.Progress()
-) -> Tuple[str, str, str, str, str, str, str, str, str]:
+) -> Tuple[Dict, str, str, str, str, str, str, str, str, str]:
     """Start the trading analysis process."""
     
-    global analysis_state
+    # Initialize session state if not provided
+    if not session_state:
+        session_state = init_session_state()
+    
+    streaming_handler = session_state["streaming_handler"]
     
     # Debug information
     print(f"DEBUG: Received date: {analysis_date} (type: {type(analysis_date)})")
     
     # Convert date to string format
     if analysis_date is None:
-        return "❌ Please select a date", "", "", "", "", "", "", "", ""
+        return session_state, "❌ Please select a date", "", "", "", "", "", "", "", ""
     
     try:
         if isinstance(analysis_date, datetime.datetime):
@@ -86,9 +92,9 @@ def start_analysis(
                             analysis_date_str = parsed_date.strftime("%Y-%m-%d")
                         except ValueError:
                             print(f"DEBUG: Failed to parse date string: '{analysis_date}'")
-                            return "❌ Invalid date format. Please use YYYY-MM-DD", "", "", "", "", "", "", "", ""
+                            return session_state, "❌ Invalid date format. Please use YYYY-MM-DD", "", "", "", "", "", "", "", ""
             else:
-                return "❌ Please select a valid date", "", "", "", "", "", "", "", ""
+                return session_state, "❌ Please select a valid date", "", "", "", "", "", "", "", ""
         else:
             # Try to convert to string and parse
             date_str = str(analysis_date)
@@ -98,37 +104,37 @@ def start_analysis(
                     parsed_date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
                     analysis_date_str = parsed_date.strftime("%Y-%m-%d")
                 except ValueError:
-                    return "❌ Invalid date format. Please use YYYY-MM-DD", "", "", "", "", "", "", "", ""
+                    return session_state, "❌ Invalid date format. Please use YYYY-MM-DD", "", "", "", "", "", "", "", ""
             else:
-                return "❌ Please select a valid date", "", "", "", "", "", "", "", ""
+                return session_state, "❌ Please select a valid date", "", "", "", "", "", "", "", ""
     except Exception as e:
         print(f"DEBUG: Date conversion error: {str(e)}")
-        return f"❌ Date processing error: {str(e)}", "", "", "", "", "", "", "", ""
+        return session_state, f"❌ Date processing error: {str(e)}", "", "", "", "", "", "", "", ""
     
     print(f"DEBUG: Converted date string: {analysis_date_str}")
     
     # Validate inputs
     if not validate_ticker(ticker):
-        return "❌ Invalid ticker symbol", "", "", "", "", "", "", "", ""
+        return session_state, "❌ Invalid ticker symbol", "", "", "", "", "", "", "", ""
     
     # Check if date is in the future
     try:
         parsed_date = datetime.datetime.strptime(analysis_date_str, "%Y-%m-%d").date()
         if parsed_date > datetime.date.today():
-            return "❌ Date cannot be in the future", "", "", "", "", "", "", "", ""
+            return session_state, "❌ Date cannot be in the future", "", "", "", "", "", "", "", ""
     except ValueError:
-        return "❌ Invalid date format", "", "", "", "", "", "", "", ""
+        return session_state, "❌ Invalid date format", "", "", "", "", "", "", "", ""
     
-    if analysis_state["running"]:
-        return "⚠️ Analysis already in progress", "", "", "", "", "", "", "", ""
+    if session_state["running"]:
+        return session_state, "⚠️ Analysis already in progress", "", "", "", "", "", "", "", ""
     
     # Set up analysis state
-    analysis_state["running"] = True
-    analysis_state["current_ticker"] = ticker.upper()
-    analysis_state["current_date"] = analysis_date_str
-    analysis_state["results"] = {}
-    analysis_state["progress"] = {}
-    analysis_state["error"] = None
+    session_state["running"] = True
+    session_state["current_ticker"] = ticker.upper()
+    session_state["current_date"] = analysis_date_str
+    session_state["results"] = {}
+    session_state["progress"] = {}
+    session_state["error"] = None
     
     # Reset streaming handler
     streaming_handler.reset()
@@ -161,16 +167,16 @@ def start_analysis(
                 progress(1.0, desc="Analysis complete!")
                 
                 # Store results
-                analysis_state["results"] = {
+                session_state["results"] = {
                     "decision": decision,
                     "reports": streaming_handler.get_all_reports()
                 }
                 
             except Exception as e:
-                analysis_state["error"] = str(e)
+                session_state["error"] = str(e)
                 progress(1.0, desc=f"Error: {str(e)}")
             finally:
-                analysis_state["running"] = False
+                session_state["running"] = False
         
         # Start analysis thread
         analysis_thread = threading.Thread(target=run_analysis)
@@ -178,6 +184,7 @@ def start_analysis(
         
         # Return initial status
         return (
+            session_state,
             f"🚀 Starting analysis for {ticker.upper()} on {analysis_date_str}...",
             "⏳ Initializing...",
             "⏳ Pending...",
@@ -190,24 +197,25 @@ def start_analysis(
         )
         
     except Exception as e:
-        analysis_state["running"] = False
-        analysis_state["error"] = str(e)
-        return f"❌ Error: {str(e)}", "", "", "", "", "", "", "", ""
+        session_state["running"] = False
+        session_state["error"] = str(e)
+        return session_state, f"❌ Error: {str(e)}", "", "", "", "", "", "", "", ""
 
-def get_analysis_status():
+def get_analysis_status(session_state: dict):
     """Get current analysis status and results."""
-    if analysis_state["error"]:
-        return f"❌ Error: {analysis_state['error']}"
+    if session_state["error"]:
+        return f"❌ Error: {session_state['error']}"
     
-    if not analysis_state["running"]:
-        if analysis_state["results"]:
-            return f"✅ Analysis complete for {analysis_state['current_ticker']}"
+    if not session_state["running"]:
+        if session_state["results"]:
+            return f"✅ Analysis complete for {session_state['current_ticker']}"
         return "⏸️ Ready to start analysis"
     
-    return f"🔄 Analyzing {analysis_state['current_ticker']} on {analysis_state['current_date']}..."
+    return f"🔄 Analyzing {session_state['current_ticker']} on {session_state['current_date']}..."
 
-def get_live_updates():
+def get_live_updates(session_state: dict):
     """Get live updates from streaming handler."""
+    streaming_handler = session_state["streaming_handler"]
     updates = streaming_handler.get_latest_updates()
     
     if not updates:
@@ -215,8 +223,9 @@ def get_live_updates():
     
     return "\n".join([f"[{update['timestamp']}] {update['message']}" for update in updates[-10:]])
 
-def get_agent_status():
+def get_agent_status(session_state: dict):
     """Get current agent status."""
+    streaming_handler = session_state["streaming_handler"]
     status = streaming_handler.get_agent_status()
     
     status_text = "**Agent Status:**\n\n"
@@ -240,12 +249,12 @@ def get_agent_status():
     
     return status_text
 
-def get_report_content(report_type: str):
+def get_report_content(session_state: dict, report_type: str):
     """Get content for a specific report type."""
-    if not analysis_state["results"]:
+    if not session_state["results"]:
         return "⏳ Analysis not completed yet..."
     
-    reports = analysis_state["results"].get("reports", {})
+    reports = session_state["results"].get("reports", {})
     content = reports.get(report_type, "No content available")
     
     if content:
@@ -253,34 +262,35 @@ def get_report_content(report_type: str):
     
     return "⏳ Report not generated yet..."
 
-def refresh_status():
+def refresh_status(session_state: dict):
     """Refresh all status components."""
     return (
-        get_analysis_status(),
-        get_live_updates(),
-        get_agent_status(),
-        get_report_content("market_report"),
-        get_report_content("sentiment_report"),
-        get_report_content("news_report"),
-        get_report_content("fundamentals_report"),
-        get_report_content("investment_plan"),
-        get_report_content("trader_investment_plan"),
-        get_report_content("final_trade_decision")
+        session_state,
+        get_analysis_status(session_state),
+        get_live_updates(session_state),
+        get_agent_status(session_state),
+        get_report_content(session_state, "market_report"),
+        get_report_content(session_state, "sentiment_report"),
+        get_report_content(session_state, "news_report"),
+        get_report_content(session_state, "fundamentals_report"),
+        get_report_content(session_state, "investment_plan"),
+        get_report_content(session_state, "trader_investment_plan"),
+        get_report_content(session_state, "final_trade_decision")
     )
 
-def create_download_content():
+def create_download_content(session_state: dict):
     """Create downloadable content."""
-    if not analysis_state["results"]:
+    if not session_state["results"]:
         return None, None
     
     # Create JSON download
-    json_content = json.dumps(analysis_state["results"], indent=2)
+    json_content = json.dumps(session_state["results"], indent=2)
     
     # Create markdown download
-    reports = analysis_state["results"].get("reports", {})
+    reports = session_state["results"].get("reports", {})
     md_content = f"# Trading Analysis Report\n\n"
-    md_content += f"**Ticker:** {analysis_state['current_ticker']}\n"
-    md_content += f"**Date:** {analysis_state['current_date']}\n\n"
+    md_content += f"**Ticker:** {session_state['current_ticker']}\n"
+    md_content += f"**Date:** {session_state['current_date']}\n\n"
     
     for report_type, content in reports.items():
         if content:
@@ -322,6 +332,9 @@ def create_interface():
         theme=gr.themes.Soft(),
         css=custom_css
     ) as demo:
+        # Session state for user isolation
+        session_state = gr.State(init_session_state)
+        
         gr.Markdown("# 📈 TradingAgents GUI")
         gr.Markdown("Multi-Agent LLM Financial Trading Framework")
         
@@ -429,7 +442,7 @@ def create_interface():
                         )
                         
                         agent_status = gr.Markdown(
-                            value=get_agent_status()
+                            value="**Agent Status:**\n\n⏳ Waiting for analysis to start..."
                         )
                         
                         refresh_btn = gr.Button("🔄 Refresh", size="sm")
@@ -518,6 +531,7 @@ def create_interface():
         start_btn.click(
             start_analysis,
             inputs=[
+                session_state,
                 ticker_input,
                 date_input,
                 selected_analysts,
@@ -528,6 +542,7 @@ def create_interface():
                 online_tools
             ],
             outputs=[
+                session_state,
                 status_display,
                 live_updates,
                 market_report,
@@ -542,7 +557,9 @@ def create_interface():
         
         refresh_btn.click(
             refresh_status,
+            inputs=[session_state],
             outputs=[
+                session_state,
                 status_display,
                 live_updates,
                 agent_status,
@@ -559,7 +576,9 @@ def create_interface():
         # Initial load
         demo.load(
             refresh_status,
+            inputs=[session_state],
             outputs=[
+                session_state,
                 status_display,
                 live_updates,
                 agent_status,
