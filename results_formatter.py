@@ -1,9 +1,31 @@
-import json
 import re
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
-import markdown
-import html
+
+class HTMLTemplateBuilder:
+    """Builder for creating consistent HTML templates"""
+    
+    @staticmethod
+    def create_report_template(content: str, title: str, custom_classes: str = "") -> str:
+        """Create a standardized report template"""
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        return f"""
+        <div class='report-container {custom_classes}'>
+            <div class='report-header'>
+                <h2>{title}</h2>
+                <div class='report-timestamp'>Generated: {timestamp}</div>
+            </div>
+            <div class='report-content'>
+                {content}
+            </div>
+        </div>
+        """
+    
+    @staticmethod
+    def create_placeholder(message: str) -> str:
+        """Create a placeholder div"""
+        return f"<div class='report-placeholder'>{message}</div>"
 
 class ResultsFormatter:
     """Handles formatting of analysis results for web display"""
@@ -30,169 +52,63 @@ class ResultsFormatter:
     def format_market_report(self, report: str) -> str:
         """Format market analysis report for display"""
         if not report:
-            return "<div class='report-placeholder'>Market analysis pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("Market analysis pending...")
         
-        return self._format_report_with_tables(report, "📈 Market Analysis")
+        html_content = self._markdown_to_html(report)
+        enhanced_content = self._enhance_tables(html_content)
+        return HTMLTemplateBuilder.create_report_template(enhanced_content, "📈 Market Analysis")
     
     def format_sentiment_report(self, report: str) -> str:
         """Format social sentiment report for display"""
         if not report:
-            return "<div class='report-placeholder'>Social sentiment analysis pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("Social sentiment analysis pending...")
         
-        return self._format_report_basic(report, "📱 Social Sentiment Analysis")
+        html_content = self._markdown_to_html(report)
+        return HTMLTemplateBuilder.create_report_template(html_content, "📱 Social Sentiment Analysis")
     
     def format_news_report(self, report: str) -> str:
         """Format news analysis report for display"""
         if not report:
-            return "<div class='report-placeholder'>News analysis pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("News analysis pending...")
         
-        return self._format_report_with_news_items(report, "📰 News Analysis")
+        html_content = self._markdown_to_html(report)
+        formatted_content = self._format_news_items(html_content)
+        return HTMLTemplateBuilder.create_report_template(formatted_content, "📰 News Analysis")
     
     def format_fundamentals_report(self, report: str) -> str:
         """Format fundamentals analysis report for display"""
         if not report:
-            return "<div class='report-placeholder'>Fundamentals analysis pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("Fundamentals analysis pending...")
         
-        return self._format_report_with_financials(report, "💼 Fundamentals Analysis")
+        html_content = self._markdown_to_html(report)
+        highlighted_content = self._highlight_financial_metrics(html_content)
+        return HTMLTemplateBuilder.create_report_template(highlighted_content, "💼 Fundamentals Analysis")
     
     def format_research_decision(self, report: str) -> str:
         """Format research team decision for display"""
         if not report:
-            return "<div class='report-placeholder'>Research team decision pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("Research team decision pending...")
         
-        return self._format_research_debate(report, "🎯 Research Team Decision")
+        html_content = self._markdown_to_html(report)
+        formatted_content = self._format_bull_bear_sections(html_content)
+        return HTMLTemplateBuilder.create_report_template(formatted_content, "🎯 Research Team Decision")
     
     def format_trading_plan(self, report: str) -> str:
         """Format trading plan for display"""
         if not report:
-            return "<div class='report-placeholder'>Trading plan pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("Trading plan pending...")
         
-        return self._format_trading_plan_detailed(report, "💰 Trading Plan")
+        html_content = self._markdown_to_html(report)
+        formatted_content = self._format_action_items(html_content)
+        return HTMLTemplateBuilder.create_report_template(formatted_content, "💰 Trading Plan")
     
     def format_final_decision(self, report: str) -> str:
         """Format final trading decision for display"""
         if not report:
-            return "<div class='report-placeholder'>Final decision pending...</div>"
+            return HTMLTemplateBuilder.create_placeholder("Final decision pending...")
         
-        return self._format_final_decision_detailed(report, "⚖️ Final Trading Decision")
-    
-    def _format_report_basic(self, content: str, title: str) -> str:
-        """Basic report formatting with markdown support"""
-        html_content = self._markdown_to_html(content)
-        
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {html_content}
-            </div>
-        </div>
-        """
-    
-    def _format_report_with_tables(self, content: str, title: str) -> str:
-        """Format report with enhanced table rendering"""
-        html_content = self._markdown_to_html(content)
-        
-        # Enhanced table formatting
-        html_content = self._enhance_tables(html_content)
-        
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {html_content}
-            </div>
-        </div>
-        """
-    
-    def _format_report_with_news_items(self, content: str, title: str) -> str:
-        """Format news report with special news item styling"""
-        html_content = self._markdown_to_html(content)
-        
-        # Format news items specially
-        html_content = self._format_news_items(html_content)
-        
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {html_content}
-            </div>
-        </div>
-        """
-    
-    def _format_report_with_financials(self, content: str, title: str) -> str:
-        """Format fundamentals report with financial metrics highlighting"""
-        html_content = self._markdown_to_html(content)
-        
-        # Highlight financial metrics
-        html_content = self._highlight_financial_metrics(html_content)
-        
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {html_content}
-            </div>
-        </div>
-        """
-    
-    def _format_research_debate(self, content: str, title: str) -> str:
-        """Format research team debate with bull/bear sections"""
-        html_content = self._markdown_to_html(content)
-        
-        # Format bull/bear sections
-        html_content = self._format_bull_bear_sections(html_content)
-        
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {html_content}
-            </div>
-        </div>
-        """
-    
-    def _format_trading_plan_detailed(self, content: str, title: str) -> str:
-        """Format trading plan with action items and risk metrics"""
-        html_content = self._markdown_to_html(content)
-        
-        # Extract and format action items
-        html_content = self._format_action_items(html_content)
-        
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {html_content}
-            </div>
-        </div>
-        """
-    
-    def _format_final_decision_detailed(self, content: str, title: str) -> str:
-        """Format final decision with decision highlights"""
-        html_content = self._markdown_to_html(content)
-        
-        # Extract decision summary
-        decision_summary = self._extract_decision_summary(content)
+        html_content = self._markdown_to_html(report)
+        decision_summary = self._extract_decision_summary(report)
         
         formatted_content = f"""
         <div class='decision-summary'>
@@ -203,17 +119,8 @@ class ResultsFormatter:
         </div>
         """
         
-        return f"""
-        <div class='report-container'>
-            <div class='report-header'>
-                <h2>{title}</h2>
-                <div class='report-timestamp'>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-            </div>
-            <div class='report-content'>
-                {formatted_content}
-            </div>
-        </div>
-        """
+        return HTMLTemplateBuilder.create_report_template(formatted_content, "⚖️ Final Trading Decision")
+    
     
     def _markdown_to_html(self, content: str) -> str:
         """Convert markdown content to HTML"""
@@ -372,167 +279,3 @@ class ResultsFormatter:
                 '''
         
         return ""
-    
-    def format_progress_update(self, progress_data: Dict[str, Any]) -> str:
-        """Format progress update for live display"""
-        if not progress_data:
-            return "<div>No progress data available</div>"
-        
-        agent_status = progress_data.get("agent_status", {})
-        ticker = progress_data.get("ticker", "Unknown")
-        date = progress_data.get("date", "Unknown")
-        
-        # Calculate progress percentage
-        total_agents = len(agent_status)
-        completed = sum(1 for status in agent_status.values() if status == "completed")
-        percentage = int((completed / total_agents) * 100) if total_agents > 0 else 0
-        
-        # Create progress bar
-        progress_bar = f'''
-        <div class="progress-bar-container">
-            <div class="progress-bar" style="width: {percentage}%"></div>
-            <div class="progress-text">{percentage}% Complete</div>
-        </div>
-        '''
-        
-        # Create team status
-        team_status = self._format_team_status_compact(agent_status)
-        
-        return f'''
-        <div class="progress-update">
-            <h3>Analysis Progress: {ticker} ({date})</h3>
-            {progress_bar}
-            {team_status}
-        </div>
-        '''
-    
-    def _format_team_status_compact(self, agent_status: Dict[str, str]) -> str:
-        """Format team status in compact view"""
-        teams = {
-            "Analysts": ["Market Analyst", "Social Analyst", "News Analyst", "Fundamentals Analyst"],
-            "Research": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-            "Trading": ["Trader"],
-            "Risk Mgmt": ["Risky Analyst", "Safe Analyst", "Neutral Analyst"],
-            "Portfolio": ["Portfolio Manager"],
-        }
-        
-        html = '<div class="team-status-compact">'
-        
-        for team_name, agents in teams.items():
-            team_completed = sum(1 for agent in agents if agent_status.get(agent) == "completed")
-            team_total = len(agents)
-            team_percentage = int((team_completed / team_total) * 100) if team_total > 0 else 0
-            
-            html += f'''
-            <div class="team-item">
-                <div class="team-name">{team_name}</div>
-                <div class="team-progress">
-                    <div class="team-progress-bar" style="width: {team_percentage}%"></div>
-                    <div class="team-progress-text">{team_completed}/{team_total}</div>
-                </div>
-            </div>
-            '''
-        
-        html += '</div>'
-        return html
-    
-    def format_error(self, error_message: str) -> str:
-        """Format error message for display"""
-        return f'''
-        <div class="error-container">
-            <div class="error-header">
-                <h3>❌ Error</h3>
-            </div>
-            <div class="error-content">
-                {html.escape(error_message)}
-            </div>
-        </div>
-        '''
-    
-    def create_summary_report(self, final_state: Dict[str, Any]) -> str:
-        """Create a comprehensive summary report"""
-        if not final_state:
-            return "<div>No final state available</div>"
-        
-        ticker = final_state.get("company_of_interest", "Unknown")
-        date = final_state.get("trade_date", "Unknown")
-        
-        html = f'''
-        <div class="summary-report">
-            <div class="summary-header">
-                <h2>📊 Analysis Summary: {ticker}</h2>
-                <div class="summary-date">Date: {date}</div>
-            </div>
-        '''
-        
-        # Add quick summary cards
-        summary_cards = self._create_summary_cards(final_state)
-        html += summary_cards
-        
-        # Add detailed sections
-        for section in ["market_report", "sentiment_report", "news_report", "fundamentals_report"]:
-            if section in final_state and final_state[section]:
-                title = self.report_titles.get(section, section.replace("_", " ").title())
-                html += f'''
-                <div class="summary-section">
-                    <h3>{title}</h3>
-                    <div class="summary-content">
-                        {self._truncate_content(final_state[section], 300)}
-                    </div>
-                </div>
-                '''
-        
-        html += '</div>'
-        return html
-    
-    def _create_summary_cards(self, final_state: Dict[str, Any]) -> str:
-        """Create summary cards for key metrics"""
-        cards = []
-        
-        # Decision card
-        final_decision = final_state.get("final_trade_decision", "")
-        if final_decision:
-            decision_type = "UNKNOWN"
-            if "BUY" in final_decision.upper():
-                decision_type = "BUY"
-                color = "#28a745"
-            elif "SELL" in final_decision.upper():
-                decision_type = "SELL"
-                color = "#dc3545"
-            elif "HOLD" in final_decision.upper():
-                decision_type = "HOLD"
-                color = "#ffc107"
-            else:
-                color = "#6c757d"
-            
-            cards.append(f'''
-            <div class="summary-card" style="border-left: 4px solid {color};">
-                <div class="card-title">Final Decision</div>
-                <div class="card-value" style="color: {color};">{decision_type}</div>
-            </div>
-            ''')
-        
-        # Reports count
-        reports_count = sum(1 for key in ["market_report", "sentiment_report", "news_report", "fundamentals_report"] 
-                           if final_state.get(key))
-        cards.append(f'''
-        <div class="summary-card">
-            <div class="card-title">Reports Generated</div>
-            <div class="card-value">{reports_count}/4</div>
-        </div>
-        ''')
-        
-        return f'<div class="summary-cards">{"".join(cards)}</div>'
-    
-    def _truncate_content(self, content: str, max_length: int) -> str:
-        """Truncate content to specified length"""
-        if len(content) <= max_length:
-            return content
-        
-        truncated = content[:max_length]
-        # Try to break at word boundary
-        last_space = truncated.rfind(' ')
-        if last_space > max_length * 0.8:
-            truncated = truncated[:last_space]
-        
-        return truncated + "..."

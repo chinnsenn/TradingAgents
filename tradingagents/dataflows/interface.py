@@ -1,19 +1,139 @@
-from typing import Annotated, Dict
-from .reddit_utils import fetch_top_from_category
-from .yfin_utils import *
-from .stockstats_utils import *
-from .googlenews_utils import *
-from .finnhub_utils import get_data_in_range
-from dateutil.relativedelta import relativedelta
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+# 标准库导入
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from typing import Annotated, Dict
+
+# 第三方库导入
 import pandas as pd
-from tqdm import tqdm
 import yfinance as yf
+from dateutil.relativedelta import relativedelta
 from openai import OpenAI
+from tqdm import tqdm
+
+# 本地模块导入
 from .config import get_config, set_config, DATA_DIR
+from .finnhub_utils import get_data_in_range
+from .googlenews_utils import *
+from .reddit_utils import fetch_top_from_category
+from .stockstats_utils import *
+from .yfin_utils import *
+
+def _load_technical_indicators_config():
+    """Load technical indicators configuration from JSON file"""
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), 
+        "config", 
+        "technical_indicators.json"
+    )
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        return config["technical_indicators"]
+    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+        # Fallback to hardcoded indicators if config file fails
+        return _get_fallback_indicators()
+
+def _get_fallback_indicators():
+    """Fallback hardcoded indicators if config file is not available"""
+    return {
+        "close_50_sma": {
+            "name": "50 SMA",
+            "description": "A medium-term trend indicator.",
+            "usage": "Identify trend direction and serve as dynamic support/resistance.",
+            "tips": "It lags price; combine with faster indicators for timely signals."
+        },
+        "rsi": {
+            "name": "RSI", 
+            "description": "Measures momentum to flag overbought/oversold conditions.",
+            "usage": "Apply 70/30 thresholds and watch for divergence to signal reversals.",
+            "tips": "In strong trends, RSI may remain extreme; always cross-check with trend analysis."
+        }
+    }
+
+def _load_data_validation_config():
+    """Load data validation configuration from JSON file"""
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), 
+        "config", 
+        "data_validation.json"
+    )
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        return config["data_validation"]
+    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+        # Fallback to hardcoded validation if config file fails
+        return _get_fallback_validation_config()
+
+def _get_fallback_validation_config():
+    """Fallback validation config if config file is not available"""
+    return {
+        "date_ranges": {
+            "yfin_data": {
+                "min_date": "2015-01-01",
+                "max_date": "2025-03-25",
+                "format": "%Y-%m-%d"
+            }
+        },
+        "file_templates": {
+            "yfin_data": "{symbol}-YFin-data-2015-01-01-2025-03-25.csv"
+        },
+        "error_messages": {
+            "date_out_of_range": "Get_YFin_Data: {date} is outside of the data range of {min_date} to {max_date}",
+            "invalid_date_format": "Invalid date format: {date}. Expected format: {format}",
+            "file_not_found": "Data file not found for symbol {symbol}: {filename}"
+        }
+    }
+
+def _validate_date_range(date_str, data_type="yfin_data"):
+    """Validate date is within configured range for specified data type"""
+    config = _load_data_validation_config()
+    date_config = config["date_ranges"][data_type]
+    error_messages = config["error_messages"]
+    
+    try:
+        # Validate date format
+        date_obj = datetime.strptime(date_str, date_config["format"])
+        min_date_obj = datetime.strptime(date_config["min_date"], date_config["format"])
+        max_date_obj = datetime.strptime(date_config["max_date"], date_config["format"])
+        
+        # Check if date is within range
+        if date_obj < min_date_obj or date_obj > max_date_obj:
+            raise Exception(
+                error_messages["date_out_of_range"].format(
+                    date=date_str,
+                    min_date=date_config["min_date"], 
+                    max_date=date_config["max_date"]
+                )
+            )
+        
+        return True
+        
+    except ValueError:
+        raise Exception(
+            error_messages["invalid_date_format"].format(
+                date=date_str,
+                format=date_config["format"]
+            )
+        )
+
+def _get_data_filename(symbol, data_type="yfin_data"):
+    """Get data filename using configured template"""
+    config = _load_data_validation_config()
+    template = config["file_templates"][data_type]
+    return template.format(symbol=symbol)
+
+def _format_indicator_description(indicator_config):
+    """Format indicator description from config structure"""
+    return (
+        f"{indicator_config['name']}: {indicator_config['description']} "
+        f"Usage: {indicator_config['usage']} "
+        f"Tips: {indicator_config['tips']}"
+    )
 
 
 def get_finnhub_news(
@@ -429,82 +549,12 @@ def get_stock_stats_indicators_window(
     online: Annotated[bool, "to fetch data online or offline"],
 ) -> str:
 
-    best_ind_params = {
-        # Moving Averages
-        "close_50_sma": (
-            "50 SMA: A medium-term trend indicator. "
-            "Usage: Identify trend direction and serve as dynamic support/resistance. "
-            "Tips: It lags price; combine with faster indicators for timely signals."
-        ),
-        "close_200_sma": (
-            "200 SMA: A long-term trend benchmark. "
-            "Usage: Confirm overall market trend and identify golden/death cross setups. "
-            "Tips: It reacts slowly; best for strategic trend confirmation rather than frequent trading entries."
-        ),
-        "close_10_ema": (
-            "10 EMA: A responsive short-term average. "
-            "Usage: Capture quick shifts in momentum and potential entry points. "
-            "Tips: Prone to noise in choppy markets; use alongside longer averages for filtering false signals."
-        ),
-        # MACD Related
-        "macd": (
-            "MACD: Computes momentum via differences of EMAs. "
-            "Usage: Look for crossovers and divergence as signals of trend changes. "
-            "Tips: Confirm with other indicators in low-volatility or sideways markets."
-        ),
-        "macds": (
-            "MACD Signal: An EMA smoothing of the MACD line. "
-            "Usage: Use crossovers with the MACD line to trigger trades. "
-            "Tips: Should be part of a broader strategy to avoid false positives."
-        ),
-        "macdh": (
-            "MACD Histogram: Shows the gap between the MACD line and its signal. "
-            "Usage: Visualize momentum strength and spot divergence early. "
-            "Tips: Can be volatile; complement with additional filters in fast-moving markets."
-        ),
-        # Momentum Indicators
-        "rsi": (
-            "RSI: Measures momentum to flag overbought/oversold conditions. "
-            "Usage: Apply 70/30 thresholds and watch for divergence to signal reversals. "
-            "Tips: In strong trends, RSI may remain extreme; always cross-check with trend analysis."
-        ),
-        # Volatility Indicators
-        "boll": (
-            "Bollinger Middle: A 20 SMA serving as the basis for Bollinger Bands. "
-            "Usage: Acts as a dynamic benchmark for price movement. "
-            "Tips: Combine with the upper and lower bands to effectively spot breakouts or reversals."
-        ),
-        "boll_ub": (
-            "Bollinger Upper Band: Typically 2 standard deviations above the middle line. "
-            "Usage: Signals potential overbought conditions and breakout zones. "
-            "Tips: Confirm signals with other tools; prices may ride the band in strong trends."
-        ),
-        "boll_lb": (
-            "Bollinger Lower Band: Typically 2 standard deviations below the middle line. "
-            "Usage: Indicates potential oversold conditions. "
-            "Tips: Use additional analysis to avoid false reversal signals."
-        ),
-        "atr": (
-            "ATR: Averages true range to measure volatility. "
-            "Usage: Set stop-loss levels and adjust position sizes based on current market volatility. "
-            "Tips: It's a reactive measure, so use it as part of a broader risk management strategy."
-        ),
-        # Volume-Based Indicators
-        "vwma": (
-            "VWMA: A moving average weighted by volume. "
-            "Usage: Confirm trends by integrating price action with volume data. "
-            "Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses."
-        ),
-        "mfi": (
-            "MFI: The Money Flow Index is a momentum indicator that uses both price and volume to measure buying and selling pressure. "
-            "Usage: Identify overbought (>80) or oversold (<20) conditions and confirm the strength of trends or reversals. "
-            "Tips: Use alongside RSI or MACD to confirm signals; divergence between price and MFI can indicate potential reversals."
-        ),
-    }
+    # Load indicator configurations from external config file
+    indicators_config = _load_technical_indicators_config()
 
-    if indicator not in best_ind_params:
+    if indicator not in indicators_config:
         raise ValueError(
-            f"Indicator {indicator} is not supported. Please choose from: {list(best_ind_params.keys())}"
+            f"Indicator {indicator} is not supported. Please choose from: {list(indicators_config.keys())}"
         )
 
     end_date = curr_date
@@ -549,7 +599,7 @@ def get_stock_stats_indicators_window(
         f"## {indicator} values from {before.strftime('%Y-%m-%d')} to {end_date}:\n\n"
         + ind_string
         + "\n\n"
-        + best_ind_params.get(indicator, "No description available.")
+        + _format_indicator_description(indicators_config.get(indicator, {"name": "Unknown", "description": "No description available.", "usage": "", "tips": ""}))
     )
 
     return result_str
@@ -672,18 +722,17 @@ def get_YFin_data(
     start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
     end_date: Annotated[str, "End date in yyyy-mm-dd format"],
 ) -> str:
-    # read in data
+    # read in data using configurable filename template
+    filename = _get_data_filename(symbol, "yfin_data")
     data = pd.read_csv(
         os.path.join(
             DATA_DIR,
-            f"market_data/price_data/{symbol}-YFin-data-2015-01-01-2025-03-25.csv",
+            f"market_data/price_data/{filename}",
         )
     )
 
-    if end_date > "2025-03-25":
-        raise Exception(
-            f"Get_YFin_Data: {end_date} is outside of the data range of 2015-01-01 to 2025-03-25"
-        )
+    # Validate date range using configurable rules
+    _validate_date_range(end_date, "yfin_data")
 
     # Extract just the date part for comparison
     data["DateOnly"] = data["Date"].str[:10]

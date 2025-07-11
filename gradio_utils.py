@@ -263,3 +263,72 @@ def get_theme_colors() -> Dict[str, str]:
         "warning": "#d97706",
         "info": "#0ea5e9"
     }
+
+def parse_and_validate_date(date_input) -> tuple[bool, str, str]:
+    """
+    Parse and validate date input from various formats.
+    
+    Returns:
+        tuple: (is_valid, date_string, error_message)
+    """
+    if not date_input:
+        return False, "", "请选择一个日期"
+    
+    try:
+        # Handle datetime.datetime objects
+        if isinstance(date_input, datetime.datetime):
+            date_obj = date_input.date()
+        # Handle datetime.date objects
+        elif isinstance(date_input, datetime.date):
+            date_obj = date_input
+        # Handle numeric timestamps
+        elif isinstance(date_input, (int, float)):
+            dt = datetime.datetime.fromtimestamp(date_input)
+            date_obj = dt.date()
+        # Handle string inputs
+        elif isinstance(date_input, str):
+            date_str = date_input.strip()
+            if not date_str:
+                return False, "", "请选择一个有效的日期"
+            
+            # Try different date formats
+            formats = [
+                "%Y-%m-%d",
+                "%m/%d/%Y",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f"
+            ]
+            
+            date_obj = None
+            for fmt in formats:
+                try:
+                    if 'T' in date_str and fmt == "%Y-%m-%d":
+                        date_str = date_str.split('T')[0]
+                    parsed_date = datetime.datetime.strptime(date_str, fmt)
+                    date_obj = parsed_date.date()
+                    break
+                except ValueError:
+                    continue
+            
+            if date_obj is None:
+                return False, "", "无效的日期格式，请使用 YYYY-MM-DD 格式"
+        else:
+            # Try to convert to string and parse
+            try:
+                date_str = str(date_input)
+                if date_str == "None" or not date_str:
+                    return False, "", "请选择一个有效的日期"
+                parsed_date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+                date_obj = parsed_date.date()
+            except ValueError:
+                return False, "", "无效的日期格式，请使用 YYYY-MM-DD 格式"
+        
+        # Check if date is in the future
+        if date_obj > datetime.date.today():
+            return False, "", "日期不能是未来的日期"
+        
+        # Return formatted date string
+        return True, date_obj.strftime("%Y-%m-%d"), ""
+        
+    except Exception as e:
+        return False, "", f"日期处理错误: {str(e)}"

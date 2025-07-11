@@ -1,0 +1,19 @@
+{
+  "data_validation": {
+    "date_ranges": {
+      "yfin_data": {
+        "min_date": "2015-01-01",
+        "max_date": "2025-03-25",
+        "format": "%Y-%m-%d"
+      }
+    },
+    "file_templates": {
+      "yfin_data": "{symbol}-YFin-data-2015-01-01-2025-03-25.csv"
+    },
+    "error_messages": {
+      "date_out_of_range": "Get_YFin_Data: {date} is outside of the data range of {min_date} to {max_date}",
+      "invalid_date_format": "Invalid date format: {date}. Expected format: {format}",
+      "file_not_found": "Data file not found for symbol {symbol}: {filename}"
+    }
+  }
+}

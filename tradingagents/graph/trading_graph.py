@@ -1,21 +1,76 @@
 # TradingAgents/graph/trading_graph.py
 
+# 标准库导入
 import os
-import logging
-from pathlib import Path
 import json
+import logging
 from datetime import date, datetime
+from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 
+# 第三方库导入
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
-
 from langgraph.prebuilt import ToolNode
 
+# 本地模块导入
 from tradingagents.agents import *
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.agents.utils.memory import FinancialSituationMemory
+from tradingagents.agents.utils.agent_states import (
+    AgentState,
+    InvestDebateState,
+    RiskDebateState,
+)
+from tradingagents.dataflows.interface import set_config
+from config_utils import get_provider_info
+
+from .conditional_logic import ConditionalLogic
+from .setup import GraphSetup
+from .propagation import Propagator
+from .reflection import Reflector
+from .signal_processing import SignalProcessor
+
+class LoggedChatOpenAI:
+    """OpenAI LLM wrapper with comprehensive logging capabilities."""
+    
+    def __init__(self, model: str, base_url: str, api_key: str, llm_type: str):
+        self.llm_type = llm_type
+        self.model = model
+        self.base_url = base_url
+        self.api_key = api_key
+        self._llm = ChatOpenAI(
+            model=model,
+            base_url=base_url,
+            api_key=api_key
+        )
+        
+    def invoke(self, input, config=None, **kwargs):
+        """Invoke with logging."""
+        start_time = datetime.now()
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔄 [{self.llm_type}] LLM调用开始 - 模型: {self.model} | 输入长度: {len(str(input))}")
+        
+        try:
+            result = self._llm.invoke(input, config, **kwargs)
+            duration = (datetime.now() - start_time).total_seconds()
+            
+            logger.info(f"✅ [{self.llm_type}] LLM调用成功 - "
+                      f"耗时: {duration:.2f}s | 输出长度: {len(str(result.content))}")
+            
+            return result
+            
+        except Exception as e:
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.error(f"❌ [{self.llm_type}] LLM调用失败 - "
+                       f"耗时: {duration:.2f}s | 错误: {str(e)}")
+            raise
+            
+    def __getattr__(self, name):
+        """Delegate other attributes to the underlying LLM."""
+        return getattr(self._llm, name)
+
 from tradingagents.agents.utils.agent_states import (
     AgentState,
     InvestDebateState,
@@ -36,7 +91,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('tradingagents.log')
+        logging.FileHandler(os.getenv('LOG_FILE', 'tradingagents.log'))
     ]
 )
 logger = logging.getLogger(__name__)
@@ -136,6 +191,67 @@ class TradingAgentsGraph:
         
         logger.info("✅ TradingAgentsGraph initialization completed successfully")
 
+    def _get_provider_config(self, provider):
+        """Get and validate provider configuration"""
+        provider_info = get_provider_info(provider)
+        if not provider_info:
+            raise ValueError(f"Provider '{provider}' not found in llm_provider.json configuration")
+        
+        api_base_url = provider_info["api_base_url"]
+        api_key = provider_info["api_key"]
+        logger.info(f"📡 Using API base URL: {api_base_url}")
+        
+        # 更新配置
+        self.config["backend_url"] = api_base_url
+        self.config["api_key"] = api_key
+        
+        return api_base_url, api_key
+    
+    def _create_openai_compatible_llms(self, deep_model, quick_model, api_base_url, api_key):
+        """Create OpenAI-compatible LLM instances"""
+        logger.info(f"🔧 Creating OpenAI-compatible LLMs - Deep: {deep_model}, Quick: {quick_model}")
+        
+        self.deep_thinking_llm = self._create_logged_openai_llm(
+            model=deep_model, 
+            base_url=api_base_url,
+            api_key=api_key,
+            llm_type="deep_thinking"
+        )
+        self.quick_thinking_llm = self._create_logged_openai_llm(
+            model=quick_model, 
+            base_url=api_base_url,
+            api_key=api_key,
+            llm_type="quick_thinking"
+        )
+    
+    def _create_anthropic_llms(self, deep_model, quick_model, api_base_url, api_key):
+        """Create Anthropic LLM instances"""
+        logger.info(f"🔧 Creating Anthropic LLMs - Deep: {deep_model}, Quick: {quick_model}")
+        
+        self.deep_thinking_llm = ChatAnthropic(
+            model=deep_model, 
+            base_url=api_base_url,
+            api_key=api_key
+        )
+        self.quick_thinking_llm = ChatAnthropic(
+            model=quick_model, 
+            base_url=api_base_url,
+            api_key=api_key
+        )
+    
+    def _create_google_llms(self, deep_model, quick_model, api_key):
+        """Create Google LLM instances"""
+        logger.info(f"🔧 Creating Google LLMs - Deep: {deep_model}, Quick: {quick_model}")
+        
+        self.deep_thinking_llm = ChatGoogleGenerativeAI(
+            model=deep_model,
+            google_api_key=api_key
+        )
+        self.quick_thinking_llm = ChatGoogleGenerativeAI(
+            model=quick_model,
+            google_api_key=api_key
+        )
+
     def _initialize_llms(self):
         """Initialize LLM instances with dynamic configuration and logging."""
         provider = self.config["llm_provider"]
@@ -146,59 +262,15 @@ class TradingAgentsGraph:
         
         try:
             # 获取提供商信息
-            provider_info = get_provider_info(provider)
-            if not provider_info:
-                raise ValueError(f"Provider '{provider}' not found in llm_provider.json configuration")
-            
-            api_base_url = provider_info["api_base_url"]
-            api_key = provider_info["api_key"]
-            logger.info(f"📡 Using API base URL: {api_base_url}")
-            
-            # 更新配置
-            self.config["backend_url"] = api_base_url
-            self.config["api_key"] = api_key
+            api_base_url, api_key = self._get_provider_config(provider)
 
             # 初始化LLM实例
             if provider.lower() in ["openai", "ollama", "openrouter", "onehub", "lmstudio"]:
-                logger.info(f"🔧 Creating OpenAI-compatible LLMs - Deep: {deep_model}, Quick: {quick_model}")
-                
-                # 创建带日志记录的LLM实例
-                self.deep_thinking_llm = self._create_logged_openai_llm(
-                    model=deep_model, 
-                    base_url=api_base_url,
-                    api_key=api_key,
-                    llm_type="deep_thinking"
-                )
-                self.quick_thinking_llm = self._create_logged_openai_llm(
-                    model=quick_model, 
-                    base_url=api_base_url,
-                    api_key=api_key,
-                    llm_type="quick_thinking"
-                )
-                
+                self._create_openai_compatible_llms(deep_model, quick_model, api_base_url, api_key)
             elif provider.lower() == "anthropic":
-                logger.info(f"🔧 Creating Anthropic LLMs - Deep: {deep_model}, Quick: {quick_model}")
-                self.deep_thinking_llm = ChatAnthropic(
-                    model=deep_model, 
-                    base_url=api_base_url,
-                    api_key=api_key
-                )
-                self.quick_thinking_llm = ChatAnthropic(
-                    model=quick_model, 
-                    base_url=api_base_url,
-                    api_key=api_key
-                )
-                
+                self._create_anthropic_llms(deep_model, quick_model, api_base_url, api_key)
             elif provider.lower() == "google":
-                logger.info(f"🔧 Creating Google LLMs - Deep: {deep_model}, Quick: {quick_model}")
-                self.deep_thinking_llm = ChatGoogleGenerativeAI(
-                    model=deep_model,
-                    google_api_key=api_key
-                )
-                self.quick_thinking_llm = ChatGoogleGenerativeAI(
-                    model=quick_model,
-                    google_api_key=api_key
-                )
+                self._create_google_llms(deep_model, quick_model, api_key)
             else:
                 error_msg = f"Unsupported LLM provider: {provider}"
                 logger.error(f"❌ {error_msg}")
@@ -213,43 +285,6 @@ class TradingAgentsGraph:
 
     def _create_logged_openai_llm(self, model: str, base_url: str, api_key: str, llm_type: str):
         """Create OpenAI LLM with logging wrapper."""
-        
-        class LoggedChatOpenAI:
-            def __init__(self, model: str, base_url: str, api_key: str, llm_type: str):
-                self.llm_type = llm_type
-                self.model = model
-                self.base_url = base_url
-                self.api_key = api_key
-                self._llm = ChatOpenAI(
-                    model=model,
-                    base_url=base_url,
-                    api_key=api_key
-                )
-                
-            def invoke(self, input, config=None, **kwargs):
-                """Invoke with logging."""
-                start_time = datetime.now()
-                logger.info(f"🔄 [{self.llm_type}] LLM调用开始 - 模型: {self.model} | 输入长度: {len(str(input))}")
-                
-                try:
-                    result = self._llm.invoke(input, config, **kwargs)
-                    duration = (datetime.now() - start_time).total_seconds()
-                    
-                    logger.info(f"✅ [{self.llm_type}] LLM调用成功 - "
-                              f"耗时: {duration:.2f}s | 输出长度: {len(str(result.content))}")
-                    
-                    return result
-                    
-                except Exception as e:
-                    duration = (datetime.now() - start_time).total_seconds()
-                    logger.error(f"❌ [{self.llm_type}] LLM调用失败 - "
-                               f"耗时: {duration:.2f}s | 错误: {str(e)}")
-                    raise
-                    
-            def __getattr__(self, name):
-                """Delegate other attributes to the underlying LLM."""
-                return getattr(self._llm, name)
-        
         return LoggedChatOpenAI(
             model=model,
             base_url=base_url,
@@ -337,47 +372,96 @@ class TradingAgentsGraph:
         # Return decision and processed signal
         return final_state, self.process_signal(final_state["final_trade_decision"])
 
-    def _log_state(self, trade_date, final_state):
-        """Log the final state to a JSON file."""
-        self.log_states_dict[str(trade_date)] = {
-            "company_of_interest": final_state["company_of_interest"],
-            "trade_date": final_state["trade_date"],
-            "market_report": final_state["market_report"],
-            "sentiment_report": final_state["sentiment_report"],
-            "news_report": final_state["news_report"],
-            "fundamentals_report": final_state["fundamentals_report"],
-            "investment_debate_state": {
-                "bull_history": final_state["investment_debate_state"]["bull_history"],
-                "bear_history": final_state["investment_debate_state"]["bear_history"],
-                "history": final_state["investment_debate_state"]["history"],
-                "current_response": final_state["investment_debate_state"][
-                    "current_response"
+    def _load_state_logging_config(self):
+        """Load state logging configuration from JSON file"""
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), 
+            "config", 
+            "state_logging.json"
+        )
+        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.warning(f"Could not load state logging config: {e}. Using default mapping.")
+            return self._get_default_logging_config()
+
+    def _get_default_logging_config(self):
+        """Get default logging configuration if config file is unavailable"""
+        return {
+            "state_mapping": {
+                "basic_fields": [
+                    "company_of_interest", "trade_date", "market_report", 
+                    "sentiment_report", "news_report", "fundamentals_report",
+                    "investment_plan", "final_trade_decision"
                 ],
-                "judge_decision": final_state["investment_debate_state"][
-                    "judge_decision"
-                ],
+                "simple_mappings": {
+                    "trader_investment_decision": "trader_investment_plan"
+                },
+                "nested_mappings": {
+                    "investment_debate_state": {
+                        "source_key": "investment_debate_state",
+                        "fields": ["bull_history", "bear_history", "history", "current_response", "judge_decision"]
+                    },
+                    "risk_debate_state": {
+                        "source_key": "risk_debate_state", 
+                        "fields": ["risky_history", "safe_history", "neutral_history", "history", "judge_decision"]
+                    }
+                }
             },
-            "trader_investment_decision": final_state["trader_investment_plan"],
-            "risk_debate_state": {
-                "risky_history": final_state["risk_debate_state"]["risky_history"],
-                "safe_history": final_state["risk_debate_state"]["safe_history"],
-                "neutral_history": final_state["risk_debate_state"]["neutral_history"],
-                "history": final_state["risk_debate_state"]["history"],
-                "judge_decision": final_state["risk_debate_state"]["judge_decision"],
-            },
-            "investment_plan": final_state["investment_plan"],
-            "final_trade_decision": final_state["final_trade_decision"],
+            "output_config": {
+                "directory_template": "eval_results/{ticker}/TradingAgentsStrategy_logs/",
+                "filename_template": "full_states_log_{trade_date}.json",
+                "indent": 4
+            }
         }
 
-        # Save to file
-        directory = Path(f"eval_results/{self.ticker}/TradingAgentsStrategy_logs/")
-        directory.mkdir(parents=True, exist_ok=True)
+    def _build_state_dict(self, final_state, config):
+        """Build state dictionary using configuration mapping"""
+        result = {}
+        mapping = config["state_mapping"]
+        
+        # Add basic fields
+        for field in mapping["basic_fields"]:
+            if field in final_state:
+                result[field] = final_state[field]
+        
+        # Add simple mappings (field name changes)
+        for output_key, source_key in mapping["simple_mappings"].items():
+            if source_key in final_state:
+                result[output_key] = final_state[source_key]
+        
+        # Add nested mappings
+        for output_key, nested_config in mapping["nested_mappings"].items():
+            source_key = nested_config["source_key"]
+            if source_key in final_state and final_state[source_key]:
+                nested_result = {}
+                for field in nested_config["fields"]:
+                    if field in final_state[source_key]:
+                        nested_result[field] = final_state[source_key][field]
+                result[output_key] = nested_result
+        
+        return result
 
-        with open(
-            f"eval_results/{self.ticker}/TradingAgentsStrategy_logs/full_states_log_{trade_date}.json",
-            "w",
-        ) as f:
-            json.dump(self.log_states_dict, f, indent=4)
+    def _log_state(self, trade_date, final_state):
+        """Log the final state to a JSON file using configurable mapping."""
+        config = self._load_state_logging_config()
+        
+        # Build state dictionary using configuration
+        state_dict = self._build_state_dict(final_state, config)
+        self.log_states_dict[str(trade_date)] = state_dict
+        
+        # Save to file using configured paths
+        output_config = config["output_config"]
+        directory_path = output_config["directory_template"].format(ticker=self.ticker)
+        filename = output_config["filename_template"].format(trade_date=trade_date)
+        
+        directory = Path(directory_path)
+        directory.mkdir(parents=True, exist_ok=True)
+        
+        with open(directory / filename, "w") as f:
+            json.dump(self.log_states_dict, f, indent=output_config["indent"])
 
     def reflect_and_remember(self, returns_losses):
         """Reflect on decisions and update memory based on returns."""

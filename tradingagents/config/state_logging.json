@@ -1,0 +1,44 @@
+{
+  "state_mapping": {
+    "basic_fields": [
+      "company_of_interest",
+      "trade_date",
+      "market_report", 
+      "sentiment_report",
+      "news_report",
+      "fundamentals_report",
+      "investment_plan",
+      "final_trade_decision"
+    ],
+    "simple_mappings": {
+      "trader_investment_decision": "trader_investment_plan"
+    },
+    "nested_mappings": {
+      "investment_debate_state": {
+        "source_key": "investment_debate_state",
+        "fields": [
+          "bull_history",
+          "bear_history", 
+          "history",
+          "current_response",
+          "judge_decision"
+        ]
+      },
+      "risk_debate_state": {
+        "source_key": "risk_debate_state", 
+        "fields": [
+          "risky_history",
+          "safe_history",
+          "neutral_history",
+          "history",
+          "judge_decision"
+        ]
+      }
+    }
+  },
+  "output_config": {
+    "directory_template": "eval_results/{ticker}/TradingAgentsStrategy_logs/",
+    "filename_template": "full_states_log_{trade_date}.json",
+    "indent": 4
+  }
+}

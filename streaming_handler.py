@@ -52,6 +52,22 @@ class StreamingHandler:
         self.error_messages = []
         self._lock = threading.Lock()
         
+        # Performance optimization: Add caching
+        self._status_cache = {}
+        self._status_cache_time = 0
+        self._cache_ttl = 1.0  # Cache TTL in seconds
+        
+        # Performance optimization: Pre-calculate static values
+        self._agent_teams = {
+            "分析团队": ["Market Analyst", "Social Analyst", "News Analyst", "Fundamentals Analyst"],
+            "研究团队": ["Bull Researcher", "Bear Researcher", "Research Manager"],
+            "交易团队": ["Trader"],
+            "风险管理": ["Risky Analyst", "Neutral Analyst", "Safe Analyst"],
+            "投资组合管理": ["Portfolio Manager"]
+        }
+        self._all_agents = [agent for team_agents in self._agent_teams.values() for agent in team_agents]
+        self._total_agents = len(self._all_agents)
+        
     def set_analysis_params(self, ticker: str, date: str):
         """Set analysis parameters."""
         with self._lock:
@@ -91,14 +107,21 @@ class StreamingHandler:
                 }
                 
                 new_status = status_mapping.get(status, status)
-                self.agent_status[agent] = new_status
+                old_status = self.agent_status[agent]
                 
-                # Add status update message
-                self.add_message(
-                    "status", 
-                    f"{agent} status: {new_status}",
-                    agent
-                )
+                # Only update if status changed
+                if old_status != new_status:
+                    self.agent_status[agent] = new_status
+                    
+                    # Invalidate cache when status changes
+                    self.invalidate_cache()
+                    
+                    # Add status update message
+                    self.add_message(
+                        "status", 
+                        f"{agent} status: {new_status}",
+                        agent
+                    )
     
     def update_report(self, report_type: str, content: str):
         """Update a specific report."""
@@ -168,9 +191,23 @@ class StreamingHandler:
     def get_completion_percentage(self) -> float:
         """Get estimated completion percentage based on agent status."""
         with self._lock:
-            total_agents = len(self.agent_status)
+            # Use cached value if available and fresh
+            cache_key = "completion_percentage"
+            current_time = time.time()
+            
+            if (cache_key in self._status_cache and 
+                current_time - self._status_cache_time < self._cache_ttl):
+                return self._status_cache[cache_key]
+            
+            # Calculate completion percentage
             completed_agents = sum(1 for status in self.agent_status.values() if status == "completed")
-            return (completed_agents / total_agents) * 100 if total_agents > 0 else 0
+            percentage = (completed_agents / self._total_agents) * 100 if self._total_agents > 0 else 0
+            
+            # Cache the result
+            self._status_cache[cache_key] = percentage
+            self._status_cache_time = current_time
+            
+            return percentage
     
     def get_active_agents(self) -> List[str]:
         """Get list of currently active (running) agents."""
@@ -191,6 +228,47 @@ class StreamingHandler:
         """Get list of failed agents."""
         with self._lock:
             return [agent for agent, status in self.agent_status.items() if status == "error"]
+    
+    def get_agent_status_summary(self) -> Dict[str, Any]:
+        """Get cached agent status summary for performance."""
+        with self._lock:
+            cache_key = "agent_status_summary"
+            current_time = time.time()
+            
+            if (cache_key in self._status_cache and 
+                current_time - self._status_cache_time < self._cache_ttl):
+                return self._status_cache[cache_key]
+            
+            # Calculate summary
+            active_agents = self.get_active_agents()
+            completed_agents = self.get_completed_agents()
+            pending_agents = self.get_pending_agents()
+            failed_agents = self.get_failed_agents()
+            
+            # Check if all agents are completed
+            all_completed = len(completed_agents) == self._total_agents
+            
+            summary = {
+                "all_completed": all_completed,
+                "active_agents": active_agents,
+                "completed_agents": completed_agents,
+                "pending_agents": pending_agents,
+                "failed_agents": failed_agents,
+                "completion_percentage": self.get_completion_percentage(),
+                "current_agent": active_agents[0] if active_agents else None
+            }
+            
+            # Cache the result
+            self._status_cache[cache_key] = summary
+            self._status_cache_time = current_time
+            
+            return summary
+    
+    def invalidate_cache(self):
+        """Invalidate status cache when agent status changes."""
+        with self._lock:
+            self._status_cache.clear()
+            self._status_cache_time = 0
     
     def export_to_json(self, include_messages: bool = True) -> str:
         """Export handler state to JSON."""

@@ -3,7 +3,6 @@ import datetime
 import json
 import os
 import threading
-import time
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
@@ -16,7 +15,8 @@ from gradio_utils import (
     get_llm_providers,
     get_models_for_provider,
     format_config_display,
-    create_download_files
+    create_download_files,
+    parse_and_validate_date
 )
 from streaming_handler import StreamingHandler
 
@@ -53,77 +53,14 @@ def start_analysis(
     
     streaming_handler = session_state["streaming_handler"]
     
-    # Debug information
-    print(f"DEBUG: Received date: {analysis_date} (type: {type(analysis_date)})")
-    
-    # Convert date to string format
-    if analysis_date is None:
-        return session_state, "❌ Please select a date", "", "", "", "", "", "", "", ""
-    
-    try:
-        if isinstance(analysis_date, datetime.datetime):
-            analysis_date_str = analysis_date.strftime("%Y-%m-%d")
-        elif isinstance(analysis_date, datetime.date):
-            analysis_date_str = analysis_date.strftime("%Y-%m-%d")
-        elif isinstance(analysis_date, (int, float)):
-            # Handle timestamp
-            dt = datetime.datetime.fromtimestamp(analysis_date)
-            analysis_date_str = dt.strftime("%Y-%m-%d")
-        elif isinstance(analysis_date, str):
-            # Try to parse the string to validate it
-            if analysis_date.strip():
-                # Check if it's already in correct format
-                try:
-                    parsed_date = datetime.datetime.strptime(analysis_date.strip(), "%Y-%m-%d")
-                    analysis_date_str = parsed_date.strftime("%Y-%m-%d")
-                except ValueError:
-                    # Try ISO format (YYYY-MM-DDTHH:MM:SS)
-                    try:
-                        # Handle various ISO formats
-                        date_str = analysis_date.strip()
-                        if 'T' in date_str:
-                            date_str = date_str.split('T')[0]
-                        parsed_date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
-                        analysis_date_str = parsed_date.strftime("%Y-%m-%d")
-                    except ValueError:
-                        # Try other common formats
-                        try:
-                            parsed_date = datetime.datetime.strptime(analysis_date.strip(), "%m/%d/%Y")
-                            analysis_date_str = parsed_date.strftime("%Y-%m-%d")
-                        except ValueError:
-                            print(f"DEBUG: Failed to parse date string: '{analysis_date}'")
-                            return session_state, "❌ Invalid date format. Please use YYYY-MM-DD", "", "", "", "", "", "", "", ""
-            else:
-                return session_state, "❌ Please select a valid date", "", "", "", "", "", "", "", ""
-        else:
-            # Try to convert to string and parse
-            date_str = str(analysis_date)
-            print(f"DEBUG: Trying to parse unknown type as string: '{date_str}'")
-            if date_str and date_str != "None":
-                try:
-                    parsed_date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
-                    analysis_date_str = parsed_date.strftime("%Y-%m-%d")
-                except ValueError:
-                    return session_state, "❌ Invalid date format. Please use YYYY-MM-DD", "", "", "", "", "", "", "", ""
-            else:
-                return session_state, "❌ Please select a valid date", "", "", "", "", "", "", "", ""
-    except Exception as e:
-        print(f"DEBUG: Date conversion error: {str(e)}")
-        return session_state, f"❌ Date processing error: {str(e)}", "", "", "", "", "", "", "", ""
-    
-    print(f"DEBUG: Converted date string: {analysis_date_str}")
+    # Validate and process date using optimized function
+    is_valid, analysis_date_str, error_msg = parse_and_validate_date(analysis_date)
+    if not is_valid:
+        return session_state, f"❌ {error_msg}", "", "", "", "", "", "", "", ""
     
     # Validate inputs
     if not validate_ticker(ticker):
         return session_state, "❌ Invalid ticker symbol", "", "", "", "", "", "", "", ""
-    
-    # Check if date is in the future
-    try:
-        parsed_date = datetime.datetime.strptime(analysis_date_str, "%Y-%m-%d").date()
-        if parsed_date > datetime.date.today():
-            return session_state, "❌ Date cannot be in the future", "", "", "", "", "", "", "", ""
-    except ValueError:
-        return session_state, "❌ Invalid date format", "", "", "", "", "", "", "", ""
     
     if session_state["running"]:
         return session_state, "⚠️ Analysis already in progress", "", "", "", "", "", "", "", ""
@@ -224,30 +161,27 @@ def get_live_updates(session_state: dict):
     return "\n".join([f"[{update['timestamp']}] {update['message']}" for update in updates[-10:]])
 
 def get_agent_status(session_state: dict):
-    """Get current agent status."""
+    """Get current agent status using optimized caching."""
     streaming_handler = session_state["streaming_handler"]
-    status = streaming_handler.get_agent_status()
     
-    status_text = "**Agent Status:**\n\n"
+    if not session_state["running"] and not session_state["results"]:
+        return "**代理状态：**\n\n⏸️ 等待开始分析..."
     
-    # Group agents by team
-    teams = {
-        "Analyst Team": ["Market Analyst", "Social Analyst", "News Analyst", "Fundamentals Analyst"],
-        "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
-        "Risk Management": ["Risky Analyst", "Neutral Analyst", "Safe Analyst"],
-        "Portfolio Management": ["Portfolio Manager"]
-    }
+    # Use optimized status summary
+    status_summary = streaming_handler.get_agent_status_summary()
     
-    for team, agents in teams.items():
-        status_text += f"**{team}:**\n"
-        for agent in agents:
-            agent_status = status.get(agent, "pending")
-            emoji = {"pending": "⏳", "running": "🔄", "completed": "✅", "error": "❌"}.get(agent_status, "⏳")
-            status_text += f"  {emoji} {agent}: {agent_status.title()}\n"
-        status_text += "\n"
+    if status_summary["all_completed"] and session_state["results"]:
+        return "**代理状态：**\n\n✅ 所有代理已完成分析\n\n📊 点击下方查看完整报告"
     
-    return status_text
+    # Show current running agent
+    if status_summary["current_agent"]:
+        return f"**代理状态：**\n\n🔄 **正在执行:** {status_summary['current_agent']}\n\n⏳ 其他代理等待中..."
+    
+    # Show progress summary
+    completed_count = len(status_summary["completed_agents"])
+    total_count = streaming_handler._total_agents
+    
+    return f"**代理状态：**\n\n📈 进度: {completed_count}/{total_count} 完成\n\n⏳ 分析进行中..."
 
 def get_report_content(session_state: dict, report_type: str):
     """Get content for a specific report type."""
@@ -263,7 +197,28 @@ def get_report_content(session_state: dict, report_type: str):
     return "⏳ Report not generated yet..."
 
 def refresh_status(session_state: dict):
-    """Refresh all status components."""
+    """Refresh all status components using optimized caching."""
+    # Use optimized status summary to reduce redundant calculations
+    streaming_handler = session_state["streaming_handler"]
+    status_summary = streaming_handler.get_agent_status_summary()
+    
+    # If analysis is complete, return with auto-switch indicator
+    if status_summary["all_completed"] and session_state["results"]:
+        return (
+            session_state,
+            get_analysis_status(session_state),
+            get_live_updates(session_state),
+            get_agent_status(session_state),
+            get_report_content(session_state, "market_report"),
+            get_report_content(session_state, "sentiment_report"),
+            get_report_content(session_state, "news_report"),
+            get_report_content(session_state, "fundamentals_report"),
+            get_report_content(session_state, "investment_plan"),
+            get_report_content(session_state, "trader_investment_plan"),
+            get_report_content(session_state, "final_trade_decision"),
+            gr.Tabs(selected=1)  # Auto-switch to Complete Reports tab
+        )
+    
     return (
         session_state,
         get_analysis_status(session_state),
@@ -275,7 +230,8 @@ def refresh_status(session_state: dict):
         get_report_content(session_state, "fundamentals_report"),
         get_report_content(session_state, "investment_plan"),
         get_report_content(session_state, "trader_investment_plan"),
-        get_report_content(session_state, "final_trade_decision")
+        get_report_content(session_state, "final_trade_decision"),
+        gr.Tabs(selected=0)  # Stay on Live Progress tab
     )
 
 def create_download_content(session_state: dict):
@@ -327,6 +283,180 @@ def create_interface():
     }
     """
     
+    def create_config_section():
+        """Create configuration section with optimized layout."""
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("## 🔧 配置参数")
+                
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        # Basic inputs
+                        ticker_input = gr.Textbox(
+                            label="股票代码",
+                            placeholder="例如: NVDA, AAPL, TSLA",
+                            value=os.getenv("DEFAULT_TICKER", "NVDA")
+                        )
+                        
+                        date_input = gr.DateTime(
+                            label="分析日期",
+                            value=datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),
+                            include_time=False,
+                            timezone=None,
+                            info="选择分析日期 (不能是未来日期)"
+                        )
+                        
+                        # Analyst selection
+                        analyst_choices = [
+                            "Market Analyst",
+                            "Social Media Analyst", 
+                            "News Analyst",
+                            "Fundamentals Analyst"
+                        ]
+                        
+                        selected_analysts = gr.CheckboxGroup(
+                            label="选择分析师",
+                            choices=analyst_choices,
+                            value=analyst_choices
+                        )
+                    
+                    with gr.Column(scale=1):
+                        # LLM Configuration
+                        gr.Markdown("### 🤖 LLM 配置")
+                        
+                        # Get default provider and model from JSON config
+                        try:
+                            default_provider = get_default_provider()
+                            default_model = get_default_model(default_provider)
+                        except Exception as e:
+                            # If JSON config fails, show error
+                            gr.Markdown(f"⚠️ **LLM配置加载错误:** {str(e)}")
+                            gr.Markdown("请确保 `llm_provider.json` 文件存在且配置正确。")
+                            default_provider = ""
+                            default_model = ""
+                        
+                        llm_provider = gr.Dropdown(
+                            label="LLM 提供商",
+                            choices=get_llm_providers(),
+                            value=default_provider
+                        )
+                        
+                        deep_think_model = gr.Dropdown(
+                            label="深度思考模型",
+                            choices=get_models_for_provider(default_provider) if default_provider else [],
+                            value=default_model
+                        )
+                        
+                        quick_think_model = gr.Dropdown(
+                            label="快速思考模型", 
+                            choices=get_models_for_provider(default_provider) if default_provider else [],
+                            value=default_model
+                        )
+                        
+                        max_debate_rounds = gr.Slider(
+                            label="最大辩论轮数",
+                            minimum=1,
+                            maximum=5,
+                            value=int(os.getenv("DEFAULT_MAX_DEBATE_ROUNDS", "1")),
+                            step=1
+                        )
+                        
+                        online_tools = gr.Checkbox(
+                            label="使用在线工具",
+                            value=os.getenv("DEFAULT_ONLINE_TOOLS", "True").lower() == "true"
+                        )
+                
+                with gr.Row():
+                    # Start button
+                    start_btn = gr.Button("🚀 开始分析", variant="primary", size="lg")
+                    
+                    # Status display
+                    status_display = gr.Textbox(
+                        label="状态",
+                        value="⏸️ 准备开始分析",
+                        interactive=False,
+                        scale=2
+                    )
+                    
+        return (ticker_input, date_input, selected_analysts, llm_provider, 
+                deep_think_model, quick_think_model, max_debate_rounds, 
+                online_tools, start_btn, status_display)
+    
+    def create_report_tab(tab_name, report_key):
+        """Create a report tab with consistent styling."""
+        with gr.Tab(tab_name):
+            return gr.Markdown(
+                value="⏳ 分析未开始...",
+                height=400
+            )
+    
+    def create_progress_section():
+        """Create progress monitoring section."""
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("## 📊 分析进度与结果")
+                
+                with gr.Tabs() as main_tabs:
+                    # Live Progress tab
+                    with gr.Tab("🔴 实时进度") as live_tab:
+                        with gr.Row():
+                            with gr.Column(scale=1):
+                                agent_status = gr.Markdown(
+                                    value="**代理状态：**\n\n⏸️ 等待开始分析..."
+                                )
+                                
+                                refresh_btn = gr.Button("🔄 刷新状态", size="sm")
+                                
+                                gr.Markdown(
+                                    "💡 **提示:** 点击刷新查看实时分析进度",
+                                    elem_classes="refresh-tip"
+                                )
+                            
+                            with gr.Column(scale=2):
+                                live_updates = gr.Textbox(
+                                    label="实时更新",
+                                    value="⏳ 等待更新...",
+                                    lines=15,
+                                    interactive=False
+                                )
+                    
+                    # Complete Reports tab
+                    with gr.Tab("📋 完整报告") as reports_tab:
+                        with gr.Tabs():
+                            # Create report tabs using the helper function
+                            report_tabs_data = [
+                                ("📈 市场分析", "market_report"),
+                                ("💬 社交分析", "sentiment_report"),
+                                ("📰 新闻分析", "news_report"),
+                                ("📊 基本面分析", "fundamentals_report"),
+                                ("🔍 研究报告", "investment_plan"),
+                                ("💼 交易计划", "trader_investment_plan"),
+                                ("🎯 最终决策", "final_trade_decision")
+                            ]
+                            
+                            report_components = []
+                            for tab_name, report_key in report_tabs_data:
+                                report_components.append(create_report_tab(tab_name, report_key))
+                            
+                            # Downloads tab
+                            with gr.Tab("💾 下载"):
+                                gr.Markdown("### 下载分析结果")
+                                
+                                download_json = gr.DownloadButton(
+                                    label="📄 下载 JSON",
+                                    value=None,
+                                    visible=False
+                                )
+                                
+                                download_md = gr.DownloadButton(
+                                    label="📝 下载 Markdown",
+                                    value=None,
+                                    visible=False
+                                )
+                                
+        return (main_tabs, agent_status, refresh_btn, live_updates, 
+                *report_components, download_json, download_md)
+    
     with gr.Blocks(
         title="TradingAgents GUI", 
         theme=gr.themes.Soft(),
@@ -338,184 +468,19 @@ def create_interface():
         gr.Markdown("# 📈 TradingAgents GUI")
         gr.Markdown("Multi-Agent LLM Financial Trading Framework")
         
-        with gr.Row():
-            # Left column - Configuration
-            with gr.Column(scale=1):
-                gr.Markdown("## 🔧 Configuration")
-                
-                # Basic inputs
-                ticker_input = gr.Textbox(
-                    label="Ticker Symbol",
-                    placeholder="e.g., NVDA, AAPL, TSLA",
-                    value="NVDA"
-                )
-                
-                date_input = gr.DateTime(
-                    label="Analysis Date",
-                    value=datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),
-                    include_time=False,
-                    timezone=None,
-                    info="Select a date for analysis (cannot be in the future)"
-                )
-                
-                # Analyst selection
-                analyst_choices = [
-                    "Market Analyst",
-                    "Social Media Analyst", 
-                    "News Analyst",
-                    "Fundamentals Analyst"
-                ]
-                
-                selected_analysts = gr.CheckboxGroup(
-                    label="Select Analysts",
-                    choices=analyst_choices,
-                    value=analyst_choices
-                )
-                
-                # LLM Configuration
-                gr.Markdown("### 🤖 LLM Configuration")
-                
-                # Get default provider and model from JSON config
-                try:
-                    default_provider = get_default_provider()
-                    default_model = get_default_model(default_provider)
-                except Exception as e:
-                    # If JSON config fails, show error
-                    gr.Markdown(f"⚠️ **Error loading LLM configuration:** {str(e)}")
-                    gr.Markdown("Please ensure `llm_provider.json` exists and is properly configured.")
-                    default_provider = ""
-                    default_model = ""
-                
-                llm_provider = gr.Dropdown(
-                    label="LLM Provider",
-                    choices=get_llm_providers(),
-                    value=default_provider
-                )
-                
-                deep_think_model = gr.Dropdown(
-                    label="Deep Think Model",
-                    choices=get_models_for_provider(default_provider) if default_provider else [],
-                    value=default_model
-                )
-                
-                quick_think_model = gr.Dropdown(
-                    label="Quick Think Model", 
-                    choices=get_models_for_provider(default_provider) if default_provider else [],
-                    value=default_model
-                )
-                
-                max_debate_rounds = gr.Slider(
-                    label="Max Debate Rounds",
-                    minimum=1,
-                    maximum=5,
-                    value=1,
-                    step=1
-                )
-                
-                online_tools = gr.Checkbox(
-                    label="Use Online Tools",
-                    value=True
-                )
-                
-                # Start button
-                start_btn = gr.Button("🚀 Start Analysis", variant="primary", size="lg")
-                
-                # Status display
-                status_display = gr.Textbox(
-                    label="Status",
-                    value="⏸️ Ready to start analysis",
-                    interactive=False
-                )
-            
-            # Right column - Results
-            with gr.Column(scale=2):
-                gr.Markdown("## 📊 Analysis Results")
-                
-                with gr.Tabs():
-                    # Live tab
-                    with gr.Tab("🔴 Live"):
-                        live_updates = gr.Textbox(
-                            label="Live Updates",
-                            value="⏳ Waiting for updates...",
-                            lines=10,
-                            interactive=False
-                        )
-                        
-                        agent_status = gr.Markdown(
-                            value="**Agent Status:**\n\n⏳ Waiting for analysis to start..."
-                        )
-                        
-                        refresh_btn = gr.Button("🔄 Refresh", size="sm")
-                        
-                        gr.Markdown(
-                            "💡 **Tip:** Click refresh to see live updates during analysis",
-                            elem_classes="refresh-tip"
-                        )
-                    
-                    # Market Analysis tab
-                    with gr.Tab("📈 Market Analysis"):
-                        market_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # Social Analysis tab
-                    with gr.Tab("💬 Social Analysis"):
-                        social_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # News Analysis tab
-                    with gr.Tab("📰 News Analysis"):
-                        news_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # Fundamentals tab
-                    with gr.Tab("📊 Fundamentals"):
-                        fundamentals_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # Research tab
-                    with gr.Tab("🔍 Research"):
-                        research_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # Trading Plan tab
-                    with gr.Tab("💼 Trading Plan"):
-                        trading_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # Final Decision tab
-                    with gr.Tab("🎯 Final Decision"):
-                        final_report = gr.Markdown(
-                            value="⏳ Analysis not started...",
-                            height=400
-                        )
-                    
-                    # Downloads tab
-                    with gr.Tab("💾 Downloads"):
-                        gr.Markdown("### Download Analysis Results")
-                        
-                        download_json = gr.DownloadButton(
-                            label="📄 Download JSON",
-                            value=None,
-                            visible=False
-                        )
-                        
-                        download_md = gr.DownloadButton(
-                            label="📝 Download Markdown",
-                            value=None,
-                            visible=False
-                        )
+        # Create sections using helper functions
+        config_components = create_config_section()
+        progress_components = create_progress_section()
+        
+        # Unpack components
+        (ticker_input, date_input, selected_analysts, llm_provider, 
+         deep_think_model, quick_think_model, max_debate_rounds, 
+         online_tools, start_btn, status_display) = config_components
+        
+        (main_tabs, agent_status, refresh_btn, live_updates, 
+         market_report, social_report, news_report, fundamentals_report,
+         research_report, trading_report, final_report, 
+         download_json, download_md) = progress_components
         
         # Event handlers
         def update_models(provider):
@@ -569,7 +534,8 @@ def create_interface():
                 fundamentals_report,
                 research_report,
                 trading_report,
-                final_report
+                final_report,
+                main_tabs
             ]
         )
         
@@ -588,7 +554,8 @@ def create_interface():
                 fundamentals_report,
                 research_report,
                 trading_report,
-                final_report
+                final_report,
+                main_tabs
             ]
         )
     
@@ -597,8 +564,8 @@ def create_interface():
 if __name__ == "__main__":
     demo = create_interface()
     demo.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
+        server_name=os.getenv("SERVER_HOST", "0.0.0.0"),
+        server_port=int(os.getenv("SERVER_PORT", "7860")),
+        share=os.getenv("SHARE", "False").lower() == "true",
         show_error=True
     )
