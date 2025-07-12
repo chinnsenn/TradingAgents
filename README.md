@@ -190,7 +190,7 @@ TradingAgents offers multiple interfaces to suit different user preferences:
 
 Launch the modern Gradio-based web interface:
 ```bash
-python launch_gradio.py
+python launch_gui.py
 ```
 
 The GUI provides:
@@ -273,7 +273,7 @@ You can view the full list of configurations in `tradingagents/default_config.py
 3. **Set up environment**: Add `FINNHUB_API_KEY` to `.env` file
 4. **Configure LLM providers**: Copy and edit the example file: `cp llm_provider.json.example llm_provider.json`
 5. **Launch interface**: 
-   - GUI: `python launch_gradio.py`
+   - GUI: `python launch_gui.py`
    - CLI: `python -m cli.main`
    - Python: Import and use `TradingAgentsGraph`
 

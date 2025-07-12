@@ -25,7 +25,7 @@ pip install -e .
 ### Running the Application
 ```bash
 # GUI Interface (Gradio-based web interface)
-python launch_gradio.py
+python launch_gui.py
 
 # CLI Interface  
 python -m cli.main
@@ -69,7 +69,7 @@ python test_gui.py
 
 **Interfaces**
 - **CLI**: `cli/main.py` - Command-line interface with rich terminal output
-- **GUI**: `gradio_app.py`, `launch_gradio.py` - Web-based interface
+- **GUI**: `gui_app.py`, `launch_gui.py` - Web-based interface
 - **Package**: Direct import via `TradingAgentsGraph`
 
 ### Configuration System
@@ -117,7 +117,7 @@ python test_gui.py
 - `tradingagents/graph/trading_graph.py:96`: LLM initialization
 - `config_utils.py`: LLM provider configuration loader
 - `cli/main.py`: CLI entry point with rich terminal interface
-- `gradio_app.py`: Web interface with progress tracking
+- `gui_app.py`: Web interface with progress tracking
 - `main.py`: Simple Python usage example
 
 ### Common Issues

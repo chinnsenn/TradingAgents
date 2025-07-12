@@ -191,7 +191,7 @@ TradingAgents 提供多种界面以适应不同的用户偏好：
 
 启动现代化的 Gradio 网页界面：
 ```bash
-python launch_gradio.py
+python launch_gui.py
 ```
 
 GUI 提供：
@@ -274,7 +274,7 @@ print(decision)
 3. **设置环境**：将 `FINNHUB_API_KEY` 添加到 `.env` 文件
 4. **配置 LLM 提供商**：复制并编辑示例文件：`cp llm_provider.json.example llm_provider.json`
 5. **启动界面**：
-   - GUI：`python launch_gradio.py`
+   - GUI：`python launch_gui.py`
    - CLI：`python -m cli.main`
    - Python：导入并使用 `TradingAgentsGraph`
 

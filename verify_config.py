@@ -59,22 +59,22 @@ def test_cli_integration():
         print(f"❌ CLI集成测试失败: {e}")
         return False
 
-def test_gradio_integration():
-    """测试Gradio集成"""
-    print("\n🔍 测试Gradio集成...")
+def test_gui_integration():
+    """测试GUI集成"""
+    print("\n🔍 测试GUI集成...")
     try:
-        from gradio_utils import get_llm_providers, get_models_for_provider
+        from config_utils import get_provider_names, get_provider_models
         
-        providers = get_llm_providers()
-        print(f"✅ Gradio 获取到 {len(providers)} 个提供商")
+        providers = get_provider_names()
+        print(f"✅ GUI 获取到 {len(providers)} 个提供商")
         
         for provider in providers:
-            models = get_models_for_provider(provider)
-            print(f"✅ Gradio {provider}: {len(models)} 个模型")
+            models = get_provider_models(provider)
+            print(f"✅ GUI {provider}: {len(models)} 个模型")
         
         return True
     except Exception as e:
-        print(f"❌ Gradio集成测试失败: {e}")
+        print(f"❌ GUI集成测试失败: {e}")
         return False
 
 def test_gui_styles():
@@ -147,7 +147,7 @@ def main():
         test_config_loading,
         test_provider_functions,
         test_cli_integration,
-        test_gradio_integration,
+        test_gui_integration,
         test_gui_styles
     ]
     
