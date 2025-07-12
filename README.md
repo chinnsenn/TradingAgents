@@ -92,13 +92,12 @@ git clone https://github.com/TauricResearch/TradingAgents.git
 cd TradingAgents
 ```
 
-Create a virtual environment in any of your favorite environment managers:
+Install dependencies using UV (recommended):
 ```bash
-conda create -n tradingagents python=3.13
-conda activate tradingagents
+uv sync --python 3.13
 ```
 
-Install dependencies:
+Alternatively, you can install dependencies with pip:
 ```bash
 pip install -r requirements.txt
 ```
@@ -190,7 +189,7 @@ TradingAgents offers multiple interfaces to suit different user preferences:
 
 Launch the modern Streamlit-based web interface:
 ```bash
-python launch_gui.py
+uv run python launch_gui.py
 ```
 
 The Web Interface provides:
@@ -205,7 +204,7 @@ The Web Interface provides:
 
 For command-line enthusiasts:
 ```bash
-python -m cli.main
+uv run python -m cli.main
 ```
 
 You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
@@ -269,12 +268,12 @@ You can view the full list of configurations in `tradingagents/default_config.py
 ### Quick Start Guide
 
 1. **Clone the repository**: `git clone https://github.com/TauricResearch/TradingAgents.git`
-2. **Install dependencies**: `pip install -r requirements.txt`  
+2. **Install dependencies**: `uv sync --python 3.13` (recommended) or `pip install -r requirements.txt`
 3. **Set up environment**: Add `FINNHUB_API_KEY` to `.env` file
 4. **Configure LLM providers**: Copy and edit the example file: `cp llm_provider.json.example llm_provider.json`
 5. **Launch interface**: 
-   - Web Interface: `python launch_gui.py`
-   - CLI: `python -m cli.main`
+   - Web Interface: `uv run python launch_gui.py`
+   - CLI: `uv run python -m cli.main`
    - Python: Import and use `TradingAgentsGraph`
 
 **The system will automatically use the first provider and model from your JSON configuration as defaults.**

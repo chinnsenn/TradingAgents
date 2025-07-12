@@ -93,13 +93,12 @@ git clone https://github.com/TauricResearch/TradingAgents.git
 cd TradingAgents
 ```
 
-使用您喜欢的任何环境管理器创建虚拟环境：
+使用 UV 安装依赖项（推荐）：
 ```bash
-conda create -n tradingagents python=3.13
-conda activate tradingagents
+uv sync --python 3.13
 ```
 
-安装依赖项：
+或者使用 pip 安装依赖项：
 ```bash
 pip install -r requirements.txt
 ```
@@ -191,7 +190,7 @@ TradingAgents 提供多种界面以适应不同的用户偏好：
 
 启动现代化的 Streamlit 网页界面：
 ```bash
-python launch_gui.py
+uv run python launch_gui.py
 ```
 
 Web界面提供：
@@ -206,7 +205,7 @@ Web界面提供：
 
 为命令行爱好者提供：
 ```bash
-python -m cli.main
+uv run python -m cli.main
 ```
 
 您将看到一个屏幕，可以选择您想要的股票代码、日期、LLM、研究深度等。
@@ -270,12 +269,12 @@ print(decision)
 ### 快速开始指南
 
 1. **克隆仓库**：`git clone https://github.com/TauricResearch/TradingAgents.git`
-2. **安装依赖**：`pip install -r requirements.txt`  
+2. **安装依赖**：`uv sync --python 3.13`（推荐）或 `pip install -r requirements.txt`
 3. **设置环境**：将 `FINNHUB_API_KEY` 添加到 `.env` 文件
 4. **配置 LLM 提供商**：复制并编辑示例文件：`cp llm_provider.json.example llm_provider.json`
 5. **启动界面**：
-   - Web界面：`python launch_gui.py`
-   - CLI：`python -m cli.main`
+   - Web界面：`uv run python launch_gui.py`
+   - CLI：`uv run python -m cli.main`
    - Python：导入并使用 `TradingAgentsGraph`
 
 **系统将自动使用您的 JSON 配置中的第一个提供商和模型作为默认值。**
