@@ -32,7 +32,7 @@
 
 ```bash
 # 推荐方式
-python launch_streamlit.py
+python launch_gui.py
 
 # 直接启动
 streamlit run streamlit_app.py
@@ -50,11 +50,11 @@ python test_streamlit_fix.py
 - ✅ 多线程代码已清理
 - ✅ 会话状态功能正常
 
-## 🔄 与原 Gradio 版本对比
+## 🔄 Web界面优化对比
 
-| 特性 | Gradio版本 | Streamlit版本 | 状态 |
+| 特性 | 之前版本 | Streamlit版本 | 状态 |
 |------|------------|---------------|------|
-| 多线程警告 | 无 | 已修复 ✅ | 完全解决 |
+| 多线程警告 | 存在 | 已修复 ✅ | 完全解决 |
 | 实时更新 | 良好 | 优秀 ✅ | 更流畅 |
 | 错误处理 | 基础 | 增强 ✅ | 更详细 |
 | 用户体验 | 简单 | 丰富 ✅ | 更友好 |

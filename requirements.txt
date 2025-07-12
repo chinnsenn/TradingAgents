@@ -26,4 +26,3 @@ langchain_anthropic
 langchain-google-genai
 python-dotenv
 streamlit
-gradio

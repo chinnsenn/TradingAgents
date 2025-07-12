@@ -31,7 +31,7 @@
 
 <div align="center">
 
-🚀 [TradingAgents框架](#tradingagents-框架) | ⚡ [安装与使用](#安装与使用) | 🎬 [演示视频](https://www.youtube.com/watch?v=90gr5lwjIho) | 🖥️ [图形界面](#1-图形用户界面-gui) | 📦 [包使用方法](#tradingagents-包) | 🤝 [贡献代码](#贡献代码) | 📄 [引用](#引用)
+🚀 [TradingAgents框架](#tradingagents-框架) | ⚡ [安装与使用](#安装与使用) | 🎬 [演示视频](https://www.youtube.com/watch?v=90gr5lwjIho) | 🖥️ [Web界面](#1-streamlit-web界面) | 📦 [包使用方法](#tradingagents-包) | 🤝 [贡献代码](#贡献代码) | 📄 [引用](#引用)
 
 </div>
 
@@ -164,13 +164,13 @@ cp llm_provider.json.example llm_provider.json
 
 **配置行为：**
 - **默认选择**：系统自动使用 JSON 文件中的**第一个提供商**和**第一个模型**作为默认值
-- **GUI 集成**：Gradio 界面直接从此文件加载提供商和模型选项
+- **Web界面集成**：Streamlit 界面直接从此文件加载提供商和模型选项
 - **CLI 集成**：命令行界面使用相同的配置源
 - **无后备方案**：如果文件缺失或无效，系统将**不会启动**并显示清晰的错误消息
 
 **重要说明：**
 - `llm_provider.json` 文件是系统运行的**必需条件**
-- 所有界面（GUI、CLI、Python 包）都使用这个单一的配置源
+- 所有界面（Web界面、CLI、Python 包）都使用这个单一的配置源
 - 不使用环境变量或硬编码的 LLM 提供商配置默认值
 - 数组中的第一个提供商成为默认选择
 - 每个提供商模型列表中的第一个模型成为该提供商的默认模型
@@ -187,14 +187,14 @@ cp llm_provider.json.example llm_provider.json
 
 TradingAgents 提供多种界面以适应不同的用户偏好：
 
-#### 1. 图形用户界面 (GUI)
+#### 1. Streamlit Web界面
 
-启动现代化的 Gradio 网页界面：
+启动现代化的 Streamlit 网页界面：
 ```bash
 python launch_gui.py
 ```
 
-GUI 提供：
+Web界面提供：
 - 带有实时更新的交互式股票分析
 - 历史分析记录和结果管理
 - 带有视觉指示器的进度跟踪
@@ -274,7 +274,7 @@ print(decision)
 3. **设置环境**：将 `FINNHUB_API_KEY` 添加到 `.env` 文件
 4. **配置 LLM 提供商**：复制并编辑示例文件：`cp llm_provider.json.example llm_provider.json`
 5. **启动界面**：
-   - GUI：`python launch_gui.py`
+   - Web界面：`python launch_gui.py`
    - CLI：`python -m cli.main`
    - Python：导入并使用 `TradingAgentsGraph`
 
@@ -290,7 +290,7 @@ print(decision)
 
 - **统一配置**：所有 LLM 提供商设置的单一 JSON 文件（`llm_provider.json`）
 - **智能默认值**：从配置中自动选择第一个提供商和模型作为默认值
-- **多界面支持**：可选择 GUI、CLI 或 Python 包集成
+- **多界面支持**：可选择 Web界面、CLI 或 Python 包集成
 - **环境配置**：通过 `.env` 文件或环境变量进行灵活的 API 密钥管理（仅用于数据源）
 - **实时分析**：带有进度跟踪的实时市场数据处理
 - **历史记录**：分析结果存储和检索系统

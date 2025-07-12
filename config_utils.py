@@ -1,6 +1,6 @@
 """
 Shared configuration utilities for reading LLM provider configurations.
-Used by both CLI and Gradio interfaces.
+Used by CLI and Streamlit interfaces.
 """
 
 import json

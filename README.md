@@ -34,7 +34,7 @@
 
 <div align="center">
 
-🚀 [TradingAgents](#tradingagents-framework) | ⚡ [Installation & Usage](#installation-and-usage) | 🎬 [Demo](https://www.youtube.com/watch?v=90gr5lwjIho) | 🖥️ [GUI Interface](#1-graphical-user-interface-gui) | 📦 [Package Usage](#tradingagents-package) | 🤝 [Contributing](#contributing) | 📄 [Citation](#citation)
+🚀 [TradingAgents](#tradingagents-framework) | ⚡ [Installation & Usage](#installation-and-usage) | 🎬 [Demo](https://www.youtube.com/watch?v=90gr5lwjIho) | 🖥️ [Web Interface](#1-streamlit-web-interface) | 📦 [Package Usage](#tradingagents-package) | 🤝 [Contributing](#contributing) | 📄 [Citation](#citation)
 
 </div>
 
@@ -163,13 +163,13 @@ Then edit the file to add your API keys and configure your preferred models:
 
 **Configuration Behavior:**
 - **Default Selection**: The system automatically uses the **first provider** and **first model** from the JSON file as defaults
-- **GUI Integration**: The Gradio interface loads provider and model options directly from this file
+- **Web Interface Integration**: The Streamlit interface loads provider and model options directly from this file
 - **CLI Integration**: The command-line interface uses the same configuration source
 - **No Fallbacks**: If the file is missing or invalid, the system will **not start** and will display a clear error message
 
 **Important Notes:**
 - The `llm_provider.json` file is **required** for the system to function
-- All interfaces (GUI, CLI, Python package) use this single configuration source
+- All interfaces (Web UI, CLI, Python package) use this single configuration source
 - No environment variables or hardcoded defaults are used for LLM provider configuration
 - The first provider in the array becomes the default selection
 - The first model in each provider's model list becomes the default for that provider
@@ -186,14 +186,14 @@ Then edit the file to add your API keys and configure your preferred models:
 
 TradingAgents offers multiple interfaces to suit different user preferences:
 
-#### 1. Graphical User Interface (GUI)
+#### 1. Streamlit Web Interface
 
-Launch the modern Gradio-based web interface:
+Launch the modern Streamlit-based web interface:
 ```bash
 python launch_gui.py
 ```
 
-The GUI provides:
+The Web Interface provides:
 - Interactive stock analysis with real-time updates
 - Historical analysis records and result management
 - Progress tracking with visual indicators
@@ -273,7 +273,7 @@ You can view the full list of configurations in `tradingagents/default_config.py
 3. **Set up environment**: Add `FINNHUB_API_KEY` to `.env` file
 4. **Configure LLM providers**: Copy and edit the example file: `cp llm_provider.json.example llm_provider.json`
 5. **Launch interface**: 
-   - GUI: `python launch_gui.py`
+   - Web Interface: `python launch_gui.py`
    - CLI: `python -m cli.main`
    - Python: Import and use `TradingAgentsGraph`
 
@@ -289,7 +289,7 @@ We built TradingAgents with LangGraph to ensure flexibility and modularity. We u
 
 - **Unified Configuration**: Single JSON file (`llm_provider.json`) for all LLM provider settings
 - **Smart Defaults**: Automatically selects first provider and model from configuration as defaults
-- **Multi-Interface Support**: Choose between GUI, CLI, or Python package integration
+- **Multi-Interface Support**: Choose between Web UI, CLI, or Python package integration
 - **Environment Configuration**: Flexible API key management via `.env` files or environment variables (for data sources only)
 - **Real-time Analysis**: Live market data processing with progress tracking
 - **Historical Records**: Analysis result storage and retrieval system

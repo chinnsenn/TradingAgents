@@ -1,6 +1,6 @@
 """
 TradingAgents Streamlit Web 应用程序
-迁移自 Gradio 实现，保持完整功能
+专业的多代理LLM金融交易分析框架
 """
 
 import streamlit as st

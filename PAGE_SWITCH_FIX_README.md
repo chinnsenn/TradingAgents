@@ -92,4 +92,4 @@ if st.session_state.current_page != page:
 
 **现在可以正常使用页面切换功能！** 🎉
 
-启动应用：`python launch_streamlit.py`
+启动应用：`python launch_gui.py`

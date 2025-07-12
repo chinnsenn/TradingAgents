@@ -24,10 +24,7 @@ pip install -e .
 
 ### Running the Application
 ```bash
-# Streamlit Web Interface (推荐)
-python launch_streamlit.py
-
-# Gradio Web Interface (备用)
+# GUI Web Interface
 python launch_gui.py
 
 # CLI Interface  
@@ -41,9 +38,6 @@ python main.py
 ```bash
 # Run Streamlit test
 python test_streamlit.py
-
-# Run GUI test (Gradio)
-python test_gui.py
 
 # No comprehensive test suite currently configured
 ```
@@ -75,7 +69,7 @@ python test_gui.py
 
 **Interfaces**
 - **CLI**: `cli/main.py` - Command-line interface with rich terminal output
-- **GUI**: `gui_app.py`, `launch_gui.py` - Web-based interface
+- **GUI Web Interface**: `streamlit_app.py`, `launch_gui.py` - Modern web-based interface
 - **Package**: Direct import via `TradingAgentsGraph`
 
 ### Configuration System
@@ -114,8 +108,7 @@ python test_gui.py
 ### Key Dependencies
 - **LangGraph**: Agent workflow orchestration
 - **LangChain**: LLM integrations (OpenAI, Anthropic, Google)
-- **Streamlit**: Modern web interface framework (推荐)
-- **Gradio**: Alternative web interface framework (备用)
+- **Streamlit**: Modern web interface framework
 - **Rich/Typer**: CLI interface and formatting
 - **yfinance/finnhub**: Financial data sources
 - **pandas/numpy**: Data processing
@@ -125,8 +118,7 @@ python test_gui.py
 - `config_utils.py`: LLM provider configuration loader
 - `cli/main.py`: CLI entry point with rich terminal interface
 - `streamlit_app.py`: Streamlit web interface with real-time updates
-- `gui_app.py`: Gradio web interface with progress tracking (备用)
-- `launch_streamlit.py`: Streamlit application launcher
+- `launch_gui.py`: Web application launcher
 - `main.py`: Simple Python usage example
 
 ### Common Issues
