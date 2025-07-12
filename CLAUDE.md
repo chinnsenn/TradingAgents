@@ -10,11 +10,11 @@ TradingAgents is a multi-agent LLM framework for financial trading analysis. It 
 
 ### Installation & Setup
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies using UV
+uv sync
 
-# Install package in development mode
-pip install -e .
+# Or install dependencies manually
+uv pip install -e .
 ```
 
 ### Configuration Requirements
