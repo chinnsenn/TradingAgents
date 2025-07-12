@@ -24,7 +24,10 @@ pip install -e .
 
 ### Running the Application
 ```bash
-# GUI Interface (Gradio-based web interface)
+# Streamlit Web Interface (推荐)
+python launch_streamlit.py
+
+# Gradio Web Interface (备用)
 python launch_gui.py
 
 # CLI Interface  
@@ -36,7 +39,10 @@ python main.py
 
 ### Testing
 ```bash
-# Run GUI test
+# Run Streamlit test
+python test_streamlit.py
+
+# Run GUI test (Gradio)
 python test_gui.py
 
 # No comprehensive test suite currently configured
@@ -108,7 +114,8 @@ python test_gui.py
 ### Key Dependencies
 - **LangGraph**: Agent workflow orchestration
 - **LangChain**: LLM integrations (OpenAI, Anthropic, Google)
-- **Gradio**: Web interface framework
+- **Streamlit**: Modern web interface framework (推荐)
+- **Gradio**: Alternative web interface framework (备用)
 - **Rich/Typer**: CLI interface and formatting
 - **yfinance/finnhub**: Financial data sources
 - **pandas/numpy**: Data processing
@@ -117,7 +124,9 @@ python test_gui.py
 - `tradingagents/graph/trading_graph.py:96`: LLM initialization
 - `config_utils.py`: LLM provider configuration loader
 - `cli/main.py`: CLI entry point with rich terminal interface
-- `gui_app.py`: Web interface with progress tracking
+- `streamlit_app.py`: Streamlit web interface with real-time updates
+- `gui_app.py`: Gradio web interface with progress tracking (备用)
+- `launch_streamlit.py`: Streamlit application launcher
 - `main.py`: Simple Python usage example
 
 ### Common Issues
