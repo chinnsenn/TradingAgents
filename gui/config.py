@@ -24,6 +24,8 @@ CUSTOM_CSS = """
 .stColumns > div:last-child {
     padding-left: 1rem;
     border-left: 2px solid #f0f2f6;
+    z-index: 1000;
+    position: relative;
 }
 
 /* 状态面板标题样式 */
@@ -44,6 +46,27 @@ CUSTOM_CSS = """
     margin-bottom: 1rem;
 }
 
+/* 防止spinner遮挡右侧面板 */
+.stSpinner {
+    z-index: 999;
+}
+
+/* 确保状态面板始终可见 */
+.status-panel {
+    z-index: 1001 !important;
+    position: relative;
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 分析进行中时的样式调整 */
+.analysis-running .stColumns > div:last-child {
+    pointer-events: auto !important;
+    opacity: 1 !important;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
     .stColumns > div:last-child {
@@ -53,6 +76,11 @@ CUSTOM_CSS = """
         padding-top: 1rem;
         margin-top: 1rem;
     }
+}
+
+/* 禁用整个页面的spinner遮罩 */
+.stApp > div > div > div > div > div:first-child {
+    pointer-events: auto !important;
 }
 </style>
 """

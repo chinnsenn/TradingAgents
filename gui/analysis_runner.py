@@ -333,6 +333,10 @@ class AnalysisRunner:
         if current_time - last_update_time > 1.0:
             print(f"[DEBUG] 更新UI状态信息...")
             st.session_state.last_step_info = f"步骤 {step_count} | {st.session_state.current_status}"
+            
+            # 强制UI刷新以更新右侧状态面板
+            if step_count % 5 == 0:  # 每5步触发一次UI更新
+                st.rerun()
     
     def _finalize_analysis(self):
         """完成分析"""

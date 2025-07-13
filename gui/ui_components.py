@@ -4,6 +4,7 @@ UI组件模块 - 可复用的Streamlit界面组件
 import streamlit as st
 import datetime
 import json
+import time
 from typing import List, Dict, Any
 from gui.state_manager import state_manager
 from gui.report_formatter import report_formatter
@@ -91,6 +92,18 @@ class UIComponents:
         with col2:
             completed, total = state_manager.get_completed_agents_count()
             st.metric("已完成代理", f"{completed}/{total}")
+        
+        # 添加实时刷新机制（基于状态变化而非定时器）
+        if state_manager.is_analysis_running() or state_manager.is_analysis_starting():
+            # 使用较小的间隔检查状态变化
+            if not st.session_state.get('last_refresh_time'):
+                st.session_state.last_refresh_time = time.time()
+            
+            current_time = time.time()
+            # 每2秒检查一次状态更新
+            if current_time - st.session_state.last_refresh_time > 2.0:
+                st.session_state.last_refresh_time = current_time
+                st.rerun()
     
     def render_current_agent_panel(self):
         """渲染当前代理面板"""

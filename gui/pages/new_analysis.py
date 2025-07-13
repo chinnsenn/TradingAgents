@@ -137,26 +137,23 @@ class NewAnalysisPage:
     def _start_analysis(self, ticker: str, analysis_date: str, selected_analysts: List[str], 
                        research_depth: int, llm_provider: str, deep_model: str, quick_model: str):
         """开始分析"""
+        # 设置分析参数到session state，避免阻塞UI
+        st.session_state.analysis_params = {
+            'ticker': ticker,
+            'analysis_date': analysis_date,
+            'selected_analysts': selected_analysts,
+            'research_depth': research_depth,
+            'llm_provider': llm_provider,
+            'deep_model': deep_model,
+            'quick_model': quick_model
+        }
+        
         # 设置分析触发器
+        st.session_state.analysis_trigger = True
         st.session_state.analysis_starting = True
         st.session_state.analysis_running = True
         
-        # 执行分析
-        try:
-            success = analysis_runner.run_analysis(
-                ticker, analysis_date, selected_analysts, 
-                research_depth, llm_provider, deep_model, quick_model
-            )
-            
-            if success:
-                st.balloons()  # 庆祝动画
-                st.success("🎉 分析成功完成！")
-            else:
-                st.error("❌ 分析失败，请检查配置和网络连接")
-                
-        except Exception as e:
-            st.error(f"❌ 分析过程中发生错误: {str(e)}")
-        
+        # 立即重新运行以开始分析
         st.rerun()
     
     def render_main_content(self):
@@ -176,6 +173,9 @@ class NewAnalysisPage:
     
     def render_status_panel(self):
         """渲染状态监控面板"""
+        # 添加CSS类标识
+        st.markdown('<div class="status-panel">', unsafe_allow_html=True)
+        
         st.header("📊 实时状态监控")
         
         # 分析进度概览
@@ -194,9 +194,19 @@ class NewAnalysisPage:
         
         # 实时日志
         ui_components.render_realtime_logs()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
     def _render_analysis_content(self):
         """渲染分析内容"""
+        # 检查是否需要执行分析（非阻塞方式）
+        if st.session_state.get('analysis_trigger', False):
+            st.session_state.analysis_trigger = False
+            params = st.session_state.get('analysis_params', {})
+            if params:
+                # 在后台执行分析，不阻塞UI
+                self._execute_analysis_async(params)
+        
         # 如果没有开始分析，显示提示信息
         if (state_manager.get_analysis_progress() == 0 and 
             not state_manager.is_analysis_running() and 
@@ -226,6 +236,35 @@ class NewAnalysisPage:
         else:
             # 如果没有分析结果，显示占位信息
             st.info("📊 分析结果将在分析完成后显示在此处")
+    
+    def _execute_analysis_async(self, params: dict):
+        """异步执行分析（避免阻塞UI）"""
+        try:
+            # 使用session state来跟踪分析状态，避免阻塞
+            if not st.session_state.get('analysis_executed', False):
+                st.session_state.analysis_executed = True
+                
+                # 执行分析
+                success = analysis_runner.run_analysis(
+                    params['ticker'], params['analysis_date'], params['selected_analysts'], 
+                    params['research_depth'], params['llm_provider'], 
+                    params['deep_model'], params['quick_model']
+                )
+                
+                if success:
+                    st.balloons()  # 庆祝动画
+                    st.success("🎉 分析成功完成！")
+                else:
+                    st.error("❌ 分析失败，请检查配置和网络连接")
+                
+                # 清理参数
+                st.session_state.analysis_params = {}
+                st.session_state.analysis_executed = False
+                
+        except Exception as e:
+            st.error(f"❌ 分析过程中发生错误: {str(e)}")
+            st.session_state.analysis_params = {}
+            st.session_state.analysis_executed = False
 
 
 # 全局新建分析页面实例
