@@ -93,17 +93,8 @@ class UIComponents:
             completed, total = state_manager.get_completed_agents_count()
             st.metric("已完成代理", f"{completed}/{total}")
         
-        # 添加实时刷新机制（基于状态变化而非定时器）
-        if state_manager.is_analysis_running() or state_manager.is_analysis_starting():
-            # 使用较小的间隔检查状态变化
-            if not st.session_state.get('last_refresh_time'):
-                st.session_state.last_refresh_time = time.time()
-            
-            current_time = time.time()
-            # 每2秒检查一次状态更新
-            if current_time - st.session_state.last_refresh_time > 2.0:
-                st.session_state.last_refresh_time = current_time
-                st.rerun()
+        # 移除st.rerun()调用，避免中断分析流程
+        # Streamlit会自动检测session_state变化并更新UI
     
     def render_current_agent_panel(self):
         """渲染当前代理面板"""
@@ -144,9 +135,15 @@ class UIComponents:
                 # 日志控制
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("🗑️ 清空日志", key="ui_components_clear_logs"):
+                    # 使用时间戳和随机数确保键的唯一性
+                    import time
+                    import random
+                    unique_suffix = f"{int(time.time()*1000)}{random.randint(1000, 9999)}"
+                    unique_key = f"clear_logs_btn_{unique_suffix}"
+                    
+                    if st.button("🗑️ 清空日志", key=unique_key):
                         state_manager.clear_api_logs()
-                        st.rerun()
+                        # 移除st.rerun()调用，让状态自然更新
                 with col2:
                     log_count = len(st.session_state.api_logs)
                     st.caption(f"📊 日志: {log_count} 条")
@@ -249,11 +246,9 @@ class UIComponents:
         elif state_manager.is_analysis_running():
             st.warning("🔄 分析正在进行中...")
             if st.button("⏹️ 强制停止分析"):
-                st.session_state.stop_analysis = True
-                st.session_state.analysis_running = False
-                st.session_state.analysis_starting = False
+                # 使用state_manager处理停止逻辑并刷新UI
+                state_manager.stop_analysis_with_refresh()
                 st.success("分析已停止")
-                st.rerun()
         else:
             st.success("✅ 系统空闲")
     
@@ -303,18 +298,20 @@ class UIComponents:
             if st.button("🗑️ 清空当前分析"):
                 state_manager.reset_analysis_state()
                 st.success("当前分析已清空")
-                st.rerun()
+                # 移除st.rerun()调用，让状态自然更新
         
         with col2:
             if st.button("🔄 刷新历史数据"):
                 from gui_utils import get_all_available_tickers, get_all_analysis_results
                 try:
-                    st.session_state.available_tickers = get_all_available_tickers()
-                    st.session_state.historical_analysis = get_all_analysis_results()
+                    tickers = get_all_available_tickers()
+                    analysis_data = get_all_analysis_results()
+                    # 使用state_manager更新历史数据
+                    state_manager.update_historical_data(tickers, analysis_data)
                     st.success("历史数据已刷新")
                 except Exception as e:
                     st.error(f"刷新失败: {e}")
-                st.rerun()
+                # 移除st.rerun()调用，让状态自然更新
         
         with col3:
             if st.button("💾 导出当前状态"):

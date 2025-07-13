@@ -128,11 +128,9 @@ class NewAnalysisPage:
         # 停止分析按钮
         stop_button_disabled = not state_manager.is_analysis_running()
         if st.button("⏹️ 停止分析", disabled=stop_button_disabled, use_container_width=True):
-            st.session_state.stop_analysis = True
-            st.session_state.analysis_running = False
-            st.session_state.analysis_starting = False
+            # 使用state_manager统一处理停止逻辑并刷新UI
+            state_manager.stop_analysis_with_refresh()
             st.warning("分析已停止")
-            st.rerun()
     
     def _start_analysis(self, ticker: str, analysis_date: str, selected_analysts: List[str], 
                        research_depth: int, llm_provider: str, deep_model: str, quick_model: str):
@@ -148,13 +146,11 @@ class NewAnalysisPage:
             'quick_model': quick_model
         }
         
-        # 设置分析触发器
-        st.session_state.analysis_trigger = True
-        st.session_state.analysis_starting = True
-        st.session_state.analysis_running = True
+        # 使用state_manager原子性地启动分析并触发UI刷新
+        state_manager.start_analysis_atomic_with_refresh(ticker, analysis_date)
         
         # 立即重新运行以开始分析
-        st.rerun()
+        # 移除st.rerun()调用，让状态自然更新
     
     def render_main_content(self):
         """渲染主内容区域"""
@@ -178,47 +174,70 @@ class NewAnalysisPage:
         
         st.header("📊 实时状态监控")
         
-        # 分析进度概览
-        with st.container():
+        # 使用动态容器实现实时更新
+        # 创建持久化的动态容器
+        if 'progress_container' not in st.session_state:
+            st.session_state.progress_container = st.empty()
+        if 'agent_container' not in st.session_state:
+            st.session_state.agent_container = st.empty()
+        if 'details_container' not in st.session_state:
+            st.session_state.details_container = st.empty()
+        if 'logs_container' not in st.session_state:
+            st.session_state.logs_container = st.empty()
+        
+        # 使用动态容器渲染各个面板
+        with st.session_state.progress_container.container():
             ui_components.render_progress_panel()
         
-        # 当前活跃代理
-        with st.container():
+        with st.session_state.agent_container.container():
             ui_components.render_current_agent_panel()
         
-        # 分析参数信息
-        ui_components.render_analysis_params_panel()
+        with st.session_state.details_container.container():
+            ui_components.render_agent_status_details()
         
-        # 代理状态详情
-        ui_components.render_agent_status_details()
-        
-        # 实时日志
-        ui_components.render_realtime_logs()
+        with st.session_state.logs_container.container():
+            ui_components.render_realtime_logs()
         
         st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 处理刷新标志（但不在此处重新渲染）
+        if (st.session_state.get('ui_needs_refresh', False) or
+            st.session_state.get('status_needs_refresh', False) or
+            st.session_state.get('completion_needs_refresh', False)):
+            
+            # 清除各类刷新标志
+            st.session_state.ui_needs_refresh = False
+            st.session_state.status_needs_refresh = False
+            st.session_state.completion_needs_refresh = False
+            
+            # 标记需要在下次渲染时自动刷新，而不是立即重新渲染
+            # 这避免了在同一个渲染周期内重复渲染组件
     
     def _render_analysis_content(self):
         """渲染分析内容"""
         # 检查是否需要执行分析（非阻塞方式）
-        if st.session_state.get('analysis_trigger', False):
-            st.session_state.analysis_trigger = False
+        if state_manager.is_analysis_triggered():
+            state_manager.clear_analysis_trigger()
             params = st.session_state.get('analysis_params', {})
             if params:
                 # 在后台执行分析，不阻塞UI
                 self._execute_analysis_async(params)
         
-        # 如果没有开始分析，显示提示信息
+        # 检查分析完成状态
+        if st.session_state.get('analysis_completed', False):
+            st.balloons()  # 庆祝动画
+            state_manager.set_analysis_completed(False)  # 重置状态
+        
+        # 检查分析失败状态
+        if st.session_state.get('analysis_failed', False):
+            st.error("❌ 分析失败或被中断")
+            state_manager.set_analysis_failed(False)  # 重置状态
+        
+        # 只有在没有开始分析时才显示提示信息
         if (state_manager.get_analysis_progress() == 0 and 
             not state_manager.is_analysis_running() and 
             not state_manager.is_analysis_starting()):
             st.info("👈 请在左侧控制面板中配置分析参数并开始分析")
-            return
-        
-        # 如果正在启动，显示启动状态
-        elif state_manager.is_analysis_starting() and not state_manager.is_analysis_running():
-            st.warning("⏳ 分析正在启动中，请稍候...")
-            with st.spinner("正在初始化分析系统..."):
-                st.info("🚀 系统正在准备分析环境，这可能需要几秒钟时间")
             return
         
         # 分析结果展示区域
@@ -234,37 +253,44 @@ class NewAnalysisPage:
             # 使用选项卡展示不同报告
             ui_components.render_report_tabs(historical=False)
         else:
-            # 如果没有分析结果，显示占位信息
-            st.info("📊 分析结果将在分析完成后显示在此处")
+            # 当分析已经启动但没完成时，左侧保持空白
+            # 所有进度信息都在右侧的「实时状态监控」中显示
+            pass
     
     def _execute_analysis_async(self, params: dict):
         """异步执行分析（避免阻塞UI）"""
         try:
-            # 使用session state来跟踪分析状态，避免阻塞
-            if not st.session_state.get('analysis_executed', False):
-                st.session_state.analysis_executed = True
+            # 避免重复执行分析
+            if st.session_state.get('analysis_executed', False):
+                return
                 
-                # 执行分析
-                success = analysis_runner.run_analysis(
-                    params['ticker'], params['analysis_date'], params['selected_analysts'], 
-                    params['research_depth'], params['llm_provider'], 
-                    params['deep_model'], params['quick_model']
-                )
-                
-                if success:
-                    st.balloons()  # 庆祝动画
-                    st.success("🎉 分析成功完成！")
-                else:
-                    st.error("❌ 分析失败，请检查配置和网络连接")
-                
-                # 清理参数
-                st.session_state.analysis_params = {}
-                st.session_state.analysis_executed = False
-                
+            state_manager.set_analysis_executed(True)
+            
+            # 执行分析（这里会是一个长时间运行的过程）
+            success = analysis_runner.run_analysis(
+                params['ticker'], params['analysis_date'], params['selected_analysts'], 
+                params['research_depth'], params['llm_provider'], 
+                params['deep_model'], params['quick_model']
+            )
+            
+            # 分析完成后的处理
+            if success:
+                # 不使用st.rerun()，让状态自然更新
+                state_manager.set_analysis_completed(True)
+                state_manager.add_api_log("response", "🎉 分析成功完成！")
+            else:
+                state_manager.set_analysis_failed(True)
+                state_manager.add_api_log("error", "❌ 分析失败，请检查配置和网络连接")
+            
+            # 清理参数
+            state_manager.clear_analysis_params()
+            state_manager.set_analysis_executed(False)
+            
         except Exception as e:
-            st.error(f"❌ 分析过程中发生错误: {str(e)}")
-            st.session_state.analysis_params = {}
-            st.session_state.analysis_executed = False
+            state_manager.set_analysis_failed(True)
+            state_manager.add_api_log("error", f"❌ 分析过程中发生错误: {str(e)}")
+            state_manager.clear_analysis_params()
+            state_manager.set_analysis_executed(False)
 
 
 # 全局新建分析页面实例

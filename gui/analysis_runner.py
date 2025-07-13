@@ -55,12 +55,12 @@ class AnalysisRunner:
         
         # 清空之前的日志和状态
         state_manager.clear_api_logs()
-        state_manager.add_api_log("info", f"开始分析 {ticker.upper()} ({analysis_date})")
+        state_manager.add_api_log_with_container_update("info", f"开始分析 {ticker.upper()} ({analysis_date})")
         
-        # 重置状态
-        st.session_state.stop_analysis = False
-        st.session_state.analysis_progress = 0.0
-        st.session_state.analysis_starting = False
+        # 重置状态 - 使用state_manager统一管理
+        state_manager.set_stop_analysis(False)
+        state_manager.set_analysis_progress(0.0)
+        # 不在此重置 analysis_starting，保持按钮状态正确
         
         # 创建进度显示
         progress_placeholder = st.empty()
@@ -75,13 +75,13 @@ class AnalysisRunner:
             analyst_types = self._parse_analyst_selection(selected_analysts)
             init_status.text("📋 解析分析师配置...")
             init_progress.progress(0.1)
-            state_manager.add_api_log("info", f"配置分析师: {', '.join(analyst_types)}")
+            state_manager.add_api_log_with_container_update("info", f"配置分析师: {', '.join(analyst_types)}")
             
             # 步骤2: 创建配置
             config = self._create_analysis_config(research_depth, llm_provider, deep_model, quick_model)
             init_status.text("⚙️ 配置LLM提供商...")
             init_progress.progress(0.2)
-            state_manager.add_api_log("info", f"LLM提供商: {llm_provider}, 深度模型: {deep_model}, 快速模型: {quick_model}")
+            state_manager.add_api_log_with_container_update("info", f"LLM提供商: {llm_provider}, 深度模型: {deep_model}, 快速模型: {quick_model}")
             
             # 步骤3: 初始化图
             if not self._initialize_trading_graph(analyst_types, config):
@@ -99,12 +99,18 @@ class AnalysisRunner:
             init_progress.progress(1.0)
             time.sleep(0.5)
             
+            # 初始化完成后，从 starting 状态转换到 running 状态
+            state_manager.transition_to_running()
+            
             # 清空初始化显示
             progress_placeholder.empty()
             return True
             
         except Exception as e:
             progress_placeholder.empty()
+            # 如果初始化失败，使用state_manager重置状态
+            state_manager.set_analysis_starting(False)
+            state_manager.set_analysis_running(False)
             raise e
     
     def _parse_analyst_selection(self, selected_analysts: List[str]) -> List[str]:
@@ -151,7 +157,7 @@ class AnalysisRunner:
             )
             
             print(f"[DEBUG] TradingAgentsGraph初始化成功")
-            state_manager.add_api_log("response", "交易代理系统初始化成功")
+            state_manager.add_api_log_with_container_update("response", "交易代理系统初始化成功")
             return True
             
         except Exception as e:
@@ -159,7 +165,7 @@ class AnalysisRunner:
             print(f"[DEBUG] 错误类型: {type(e).__name__}")
             import traceback
             traceback.print_exc()
-            state_manager.add_api_log("error", f"初始化TradingAgentsGraph失败: {str(e)}")
+            state_manager.add_api_log_with_container_update("error", f"初始化TradingAgentsGraph失败: {str(e)}")
             raise e
     
     def _create_initial_state(self, ticker: str, analysis_date: str) -> bool:
@@ -174,7 +180,7 @@ class AnalysisRunner:
             print(f"[DEBUG] 初始状态创建成功")
             print(f"[DEBUG] 初始状态内容: {list(self.init_state.keys()) if hasattr(self.init_state, 'keys') else type(self.init_state)}")
             print(f"[DEBUG] 图参数: {self.args}")
-            state_manager.add_api_log("response", "初始分析状态创建成功")
+            state_manager.add_api_log_with_container_update("response", "初始分析状态创建成功")
             return True
             
         except Exception as e:
@@ -182,16 +188,14 @@ class AnalysisRunner:
             print(f"[DEBUG] 错误类型: {type(e).__name__}")
             import traceback
             traceback.print_exc()
-            state_manager.add_api_log("error", f"创建初始状态失败: {str(e)}")
+            state_manager.add_api_log_with_container_update("error", f"创建初始状态失败: {str(e)}")
             raise e
     
     def _execute_analysis_stream(self) -> bool:
         """执行分析流"""
-        # 创建状态显示
+        # 让右侧状态监控面板处理所有进度显示
         status_placeholder = st.empty()
-        with status_placeholder.container():
-            st.success("🔄 分析正在进行中...")
-            st.info("💡 实时状态和详细信息请查看右侧状态面板")
+        progress_placeholder = st.empty()
         
         step_count = 0
         total_expected_steps = 50
@@ -199,13 +203,13 @@ class AnalysisRunner:
         
         try:
             print(f"[DEBUG] 开始流式分析处理...")
-            state_manager.add_api_log("info", "开始流式分析处理...")
+            state_manager.add_api_log_with_container_update("info", "开始流式分析处理...")
             
             stream_count = 0
             for chunk in self.graph.graph.stream(self.init_state, **self.args):
                 if st.session_state.stop_analysis:
                     print(f"[DEBUG] 分析被用户停止")
-                    state_manager.add_api_log("warning", "分析被用户停止")
+                    state_manager.add_api_log_with_container_update("warning", "分析被用户停止")
                     break
                 
                 stream_count += 1
@@ -214,13 +218,18 @@ class AnalysisRunner:
                 # 处理数据块
                 self._process_stream_chunk(chunk, step_count)
                 
-                # 更新进度
+                # 更新进度 - 使用state_manager
                 progress = min((step_count / total_expected_steps) * 95, 95)
-                st.session_state.analysis_progress = progress
+                state_manager.set_analysis_progress(progress)
+                
+                # 所有进度信息由右侧状态监控面板处理
+                current_time = time.time()
+                if current_time - last_update_time > 2.0:  # 每2秒更新一次状态，但不显示UI
+                    # 状态更新由右侧面板管理
+                    last_update_time = current_time
                 
                 # 限制UI更新频率
                 self._update_ui_if_needed(step_count, last_update_time)
-                last_update_time = time.time()
             
             print(f"[DEBUG] 流式分析完成，总共处理 {step_count} 步，流数据块: {stream_count}")
             state_manager.add_api_log("response", f"流式分析完成，总共处理 {step_count} 步")
@@ -265,91 +274,87 @@ class AnalysisRunner:
         
         for chunk_key, report_key in report_mappings.items():
             if chunk_key in chunk and chunk[chunk_key]:
-                st.session_state.report_sections[report_key] = chunk[chunk_key]
+                state_manager.update_report_section(report_key, chunk[chunk_key])
         
         # 处理投资辩论状态
         if "investment_debate_state" in chunk and chunk["investment_debate_state"]:
             debate_state = chunk["investment_debate_state"]
             if "judge_decision" in debate_state and debate_state["judge_decision"]:
-                st.session_state.report_sections["investment_plan"] = debate_state["judge_decision"]
+                state_manager.update_report_section("investment_plan", debate_state["judge_decision"])
     
     def _update_agent_status_from_chunk(self, chunk: Dict[str, Any]):
         """从数据块更新代理状态"""
         # 检测正在进行的分析
         if "market_analysis" in chunk or any(key.startswith("market") for key in chunk.keys()):
             if not chunk.get("market_report"):
-                state_manager.update_agent_status("市场分析师", "进行中")
-                state_manager.add_api_log("api_call", "市场分析师开始分析")
+                state_manager.update_agent_status_with_refresh("市场分析师", "进行中")
+                state_manager.add_api_log_with_container_update("api_call", "市场分析师开始分析")
         
         if "sentiment_analysis" in chunk or any(key.startswith("sentiment") for key in chunk.keys()):
             if not chunk.get("sentiment_report"):
-                state_manager.update_agent_status("社交分析师", "进行中")
-                state_manager.add_api_log("api_call", "社交分析师开始分析")
+                state_manager.update_agent_status_with_refresh("社交分析师", "进行中")
+                state_manager.add_api_log_with_container_update("api_call", "社交分析师开始分析")
         
         if "news_analysis" in chunk or any(key.startswith("news") for key in chunk.keys()):
             if not chunk.get("news_report"):
-                state_manager.update_agent_status("新闻分析师", "进行中")
-                state_manager.add_api_log("api_call", "新闻分析师开始分析")
+                state_manager.update_agent_status_with_refresh("新闻分析师", "进行中")
+                state_manager.add_api_log_with_container_update("api_call", "新闻分析师开始分析")
         
         if "fundamentals_analysis" in chunk or any(key.startswith("fundamentals") for key in chunk.keys()):
             if not chunk.get("fundamentals_report"):
-                state_manager.update_agent_status("基本面分析师", "进行中")
-                state_manager.add_api_log("api_call", "基本面分析师开始分析")
+                state_manager.update_agent_status_with_refresh("基本面分析师", "进行中")
+                state_manager.add_api_log_with_container_update("api_call", "基本面分析师开始分析")
         
         # 检测完成的分析
         if "market_report" in chunk and chunk["market_report"]:
-            state_manager.update_agent_status("市场分析师", "已完成")
-            state_manager.add_api_log("response", "市场分析完成")
+            state_manager.update_agent_status_with_refresh("市场分析师", "已完成")
+            state_manager.add_api_log_with_container_update("response", "市场分析完成")
         
         if "sentiment_report" in chunk and chunk["sentiment_report"]:
-            state_manager.update_agent_status("社交分析师", "已完成")
-            state_manager.add_api_log("response", "社交情绪分析完成")
+            state_manager.update_agent_status_with_refresh("社交分析师", "已完成")
+            state_manager.add_api_log_with_container_update("response", "社交情绪分析完成")
         
         if "news_report" in chunk and chunk["news_report"]:
-            state_manager.update_agent_status("新闻分析师", "已完成")
-            state_manager.add_api_log("response", "新闻分析完成")
+            state_manager.update_agent_status_with_refresh("新闻分析师", "已完成")
+            state_manager.add_api_log_with_container_update("response", "新闻分析完成")
         
         if "fundamentals_report" in chunk and chunk["fundamentals_report"]:
-            state_manager.update_agent_status("基本面分析师", "已完成")
-            state_manager.add_api_log("response", "基本面分析完成")
+            state_manager.update_agent_status_with_refresh("基本面分析师", "已完成")
+            state_manager.add_api_log_with_container_update("response", "基本面分析完成")
         
         if "investment_debate_state" in chunk and chunk["investment_debate_state"]:
             debate_state = chunk["investment_debate_state"]
             if "judge_decision" in debate_state and debate_state["judge_decision"]:
-                state_manager.update_agent_status("研究经理", "已完成")
-                state_manager.add_api_log("response", "研究团队决策完成")
+                state_manager.update_agent_status_with_refresh("研究经理", "已完成")
+                state_manager.add_api_log_with_container_update("response", "研究团队决策完成")
         
         if "trader_investment_plan" in chunk and chunk["trader_investment_plan"]:
-            state_manager.update_agent_status("交易员", "已完成")
-            state_manager.add_api_log("response", "交易计划制定完成")
+            state_manager.update_agent_status_with_refresh("交易员", "已完成")
+            state_manager.add_api_log_with_container_update("response", "交易计划制定完成")
         
         if "final_trade_decision" in chunk and chunk["final_trade_decision"]:
-            state_manager.update_agent_status("投资组合经理", "已完成")
-            state_manager.add_api_log("response", "最终交易决策完成")
+            state_manager.update_agent_status_with_refresh("投资组合经理", "已完成")
+            state_manager.add_api_log_with_container_update("response", "最终交易决策完成")
     
     def _update_ui_if_needed(self, step_count: int, last_update_time: float):
         """在需要时更新UI"""
         current_time = time.time()
         if current_time - last_update_time > 1.0:
             print(f"[DEBUG] 更新UI状态信息...")
-            st.session_state.last_step_info = f"步骤 {step_count} | {st.session_state.current_status}"
+            info = f"步骤 {step_count} | {st.session_state.current_status}"
+            state_manager.set_last_step_info(info)
             
-            # 强制UI刷新以更新右侧状态面板
-            if step_count % 5 == 0:  # 每5步触发一次UI更新
-                st.rerun()
+            # 移除st.rerun()调用，避免中断分析流程
+            # 状态更新会通过session_state自然反映到UI上
     
     def _finalize_analysis(self):
         """完成分析"""
-        # 标记所有代理为已完成
-        for agent in st.session_state.agent_statuses:
-            st.session_state.agent_statuses[agent] = "已完成"
+        # 使用state_manager完成分析
+        state_manager.finalize_analysis_success()
         
-        st.session_state.analysis_progress = 100.0
-        st.session_state.current_status = "✅ 所有分析已完成"
-        
-        # 显示完成状态
-        status_placeholder = st.empty()
-        with status_placeholder.container():
+        # 使用容器显示完成状态，避免st.rerun()
+        completion_placeholder = st.empty()
+        with completion_placeholder.container():
             st.progress(1.0)
             st.success("🎉 分析成功完成！")
         
@@ -365,8 +370,9 @@ class AnalysisRunner:
                 analysis_date=st.session_state.current_date
             )
             
-            details_placeholder = st.empty()
-            with details_placeholder.container():
+            # 使用容器显示保存结果
+            results_placeholder = st.empty()
+            with results_placeholder.container():
                 st.success(f"📁 分析结果已保存到: {saved_path}")
                 
                 # 显示分析摘要
@@ -383,23 +389,24 @@ class AnalysisRunner:
                     st.metric("分析时长", "已完成")
                     
         except Exception as e:
-            details_placeholder = st.empty()
-            with details_placeholder.container():
+            error_placeholder = st.empty()
+            with error_placeholder.container():
                 st.warning(f"⚠️ 保存分析结果时发生错误: {str(e)}")
     
     def _handle_analysis_stopped(self):
         """处理分析停止"""
-        status_placeholder = st.empty()
-        with status_placeholder.container():
+        stop_placeholder = st.empty()
+        with stop_placeholder.container():
             st.warning("⏹️ 分析已被用户停止")
     
     def _handle_analysis_error(self, e: Exception):
         """处理分析错误"""
-        st.session_state.current_status = f"❌ 分析失败: {str(e)}"
-        st.session_state.analysis_progress = 0.0
+        # 使用state_manager处理错误状态
+        state_manager.finalize_analysis_failure(str(e))
         
-        status_placeholder = st.empty()
-        with status_placeholder.container():
+        # 使用容器显示错误信息，避免st.rerun()
+        error_placeholder = st.empty()
+        with error_placeholder.container():
             st.error(f"❌ 分析过程中发生错误: {str(e)}")
             
             # 提供错误详情和建议
@@ -421,8 +428,8 @@ class AnalysisRunner:
     def _cleanup_analysis(self):
         """清理分析资源"""
         print(f"[DEBUG] 分析线程的finally块已执行")
-        st.session_state.analysis_running = False
-        st.session_state.analysis_starting = False
+        # 使用state_manager清理分析状态
+        state_manager.cleanup_analysis()
 
 
 # 全局分析运行器实例

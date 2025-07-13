@@ -19,7 +19,7 @@ class HistoricalAnalysisPage:
         if st.button("🔄 刷新历史数据", use_container_width=True):
             self._refresh_historical_data()
             st.success("历史数据已刷新")
-            st.rerun()
+            # 移除st.rerun()调用，让状态自然更新
         
         # 股票选择
         ticker_choices = st.session_state.available_tickers if st.session_state.available_tickers else ["暂无历史数据"]
@@ -51,7 +51,7 @@ class HistoricalAnalysisPage:
                 
                 if self._load_historical_analysis(selected_ticker, selected_date):
                     st.success(f"✅ 已加载 {selected_ticker} 在 {selected_date} 的分析结果")
-                    st.rerun()
+                    # 移除st.rerun()调用，让状态自然更新
                 else:
                     st.error("❌ 加载失败，请检查数据完整性")
             else:
@@ -61,12 +61,14 @@ class HistoricalAnalysisPage:
         """刷新历史数据"""
         from gui_utils import get_all_available_tickers, get_all_analysis_results
         try:
-            st.session_state.available_tickers = get_all_available_tickers()
-            st.session_state.historical_analysis = get_all_analysis_results()
+            tickers = get_all_available_tickers()
+            analysis_data = get_all_analysis_results()
+            # 使用state_manager统一管理历史数据
+            state_manager.update_historical_data(tickers, analysis_data)
         except Exception as e:
             st.error(f"❌ 加载历史分析数据失败: {e}")
-            st.session_state.available_tickers = []
-            st.session_state.historical_analysis = {}
+            # 使用state_manager设置空数据
+            state_manager.update_historical_data([], {})
     
     def _load_historical_analysis(self, ticker: str, date: str) -> bool:
         """加载历史分析数据"""

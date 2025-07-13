@@ -47,8 +47,8 @@ class ReportFormatter:
         
         content = report_sections.get(section_key)
         if not content:
-            return f"## {title}\\n\\n暂无{title}结果"
-        return f"## {title}\\n\\n{content}"
+            return f"## {title}\n\n暂无{title}结果"
+        return f"## {title}\n\n{content}"
     
     def format_final_report(self, historical: bool = False) -> str:
         """格式化完整报告
@@ -66,39 +66,39 @@ class ReportFormatter:
             empty_message = "暂无分析结果"
         
         if not any(report_sections.values()):
-            return f"## {report_title}\\n\\n{empty_message}"
+            return f"## {report_title}\n\n{empty_message}"
         
-        report_text = f"## {report_title}\\n\\n"
+        report_text = f"## {report_title}\n\n"
         
         # 分析师团队报告
         analyst_sections = ["market_report", "sentiment_report", "news_report", "fundamentals_report"]
         has_analyst_reports = any(report_sections.get(section) for section in analyst_sections)
         
         if has_analyst_reports:
-            report_text += "### 🔍 分析师团队报告\\n\\n"
+            report_text += "### 🔍 分析师团队报告\n\n"
             for section in analyst_sections:
                 content = report_sections.get(section)
                 if content:
                     title = self.SECTION_TITLES[section]
-                    report_text += f"#### {title}\\n{content}\\n\\n"
+                    report_text += f"#### {title}\n{content}\n\n"
         
         # 研究团队报告
         if report_sections.get("investment_plan"):
-            report_text += f"### 🎯 研究团队决策\\n\\n{report_sections['investment_plan']}\\n\\n"
+            report_text += f"### 🎯 研究团队决策\n\n{report_sections['investment_plan']}\n\n"
         
         # 交易团队报告
         if report_sections.get("trader_investment_plan"):
-            report_text += f"### 💼 交易团队计划\\n\\n{report_sections['trader_investment_plan']}\\n\\n"
+            report_text += f"### 💼 交易团队计划\n\n{report_sections['trader_investment_plan']}\n\n"
         
         # 最终决策
         if report_sections.get("final_trade_decision"):
-            report_text += f"### 📈 最终交易决策\\n\\n{report_sections['final_trade_decision']}\\n\\n"
+            report_text += f"### 📈 最终交易决策\n\n{report_sections['final_trade_decision']}\n\n"
         
         return report_text
     
     def format_agent_status_display(self) -> str:
         """格式化代理状态显示"""
-        status_text = "## 🤖 代理执行状态\\n\\n"
+        status_text = "## 🤖 代理执行状态\n\n"
         
         for group_name, agents in self.AGENT_GROUPS.items():
             completed = sum(1 for agent in agents if st.session_state.agent_statuses.get(agent) == "已完成")
@@ -112,8 +112,8 @@ class ReportFormatter:
             else:
                 status_emoji = "⏸️"
             
-            status_text += f"### {group_name}\\n"
-            status_text += f"{status_emoji} **进度**: {completed}/{total} 完成\\n"
+            status_text += f"### {group_name}\n"
+            status_text += f"{status_emoji} **进度**: {completed}/{total} 完成\n"
             
             # 显示各个代理状态
             for agent in agents:
@@ -124,8 +124,8 @@ class ReportFormatter:
                     emoji = "🔄"
                 else:
                     emoji = "⏸️"
-                status_text += f"- {emoji} {agent}\\n"
-            status_text += "\\n"
+                status_text += f"- {emoji} {agent}\n"
+            status_text += "\n"
         
         return status_text
     
@@ -150,7 +150,7 @@ class ReportFormatter:
             }
             icon = icon_mapping.get(log_type, "ℹ️")
             
-            log_text += f"`{timestamp}` {icon} **{log_type.upper()}**: {message}\\n\\n"
+            log_text += f"`{timestamp}` {icon} **{log_type.upper()}**: {message}\n\n"
         
         return log_text
     

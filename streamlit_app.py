@@ -32,12 +32,14 @@ class TradingAgentsApp:
         """加载历史分析数据"""
         try:
             from gui_utils import get_all_available_tickers, get_all_analysis_results
-            st.session_state.available_tickers = get_all_available_tickers()
-            st.session_state.historical_analysis = get_all_analysis_results()
+            tickers = get_all_available_tickers()
+            analysis_data = get_all_analysis_results()
+            # 使用state_manager统一管理历史数据
+            state_manager.update_historical_data(tickers, analysis_data)
         except Exception as e:
             st.error(f"❌ 加载历史分析数据失败: {e}")
-            st.session_state.available_tickers = []
-            st.session_state.historical_analysis = {}
+            # 使用state_manager设置空数据
+            state_manager.update_historical_data([], {})
     
     def render_header(self):
         """渲染应用头部"""
