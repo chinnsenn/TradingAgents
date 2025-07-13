@@ -22,6 +22,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from cli.models import AnalystType
 from cli.utils import *
+from error_handler import setup_error_handling, with_error_handling
 
 console = Console()
 
@@ -1058,6 +1059,7 @@ def _finalize_analysis(graph, trace, selections, layout):
 
     update_display(layout)
 
+@with_error_handling
 def run_analysis():
     """Run the complete trading analysis workflow"""
     # First get all user selections
@@ -1102,8 +1104,20 @@ def run_analysis():
 
 @app.command()
 def analyze():
-    run_analysis()
+    """启动交易分析，包含完整错误跟踪"""
+    # 启用全局错误处理
+    setup_error_handling(enable_debug=True)
+    
+    try:
+        run_analysis()
+    except Exception as e:
+        console.print("\n[red]❌ 分析过程发生错误[/red]")
+        console.print(f"[red]错误信息: {str(e)}[/red]")
+        console.print("\n[yellow]💡 请查看上方的完整错误跟踪信息[/yellow]")
+        raise  # 重新抛出异常以显示完整堆栈跟踪
 
 
 if __name__ == "__main__":
+    # 在程序启动时设置错误处理
+    setup_error_handling(enable_debug=True)
     app()

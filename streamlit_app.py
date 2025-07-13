@@ -10,6 +10,9 @@ from typing import Dict, Any, List, Optional, Tuple
 import time
 import json
 
+# 导入错误处理模块
+from error_handler import setup_error_handling, with_error_handling, print_exception_details
+
 # 导入核心业务逻辑
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -116,6 +119,10 @@ class TradingAgentsStreamlitApp:
             st.session_state.show_logs = True
         if 'max_log_entries' not in st.session_state:
             st.session_state.max_log_entries = 100
+        
+        # 步骤信息状态
+        if 'last_step_info' not in st.session_state:
+            st.session_state.last_step_info = ""
             
     def load_configuration(self):
         """加载配置信息"""
@@ -360,6 +367,7 @@ class TradingAgentsStreamlitApp:
         
         return report_text
     
+    @with_error_handling
     def run_analysis_sync(self, ticker: str, analysis_date: str, selected_analysts: List[str], 
                          research_depth: int, llm_provider: str, deep_model: str, quick_model: str):
         """同步运行分析（避免多线程上下文问题）"""
@@ -431,13 +439,21 @@ class TradingAgentsStreamlitApp:
             
             # 初始化图
             try:
+                print(f"[DEBUG] 开始初始化TradingAgentsGraph...")
+                print(f"[DEBUG] 分析师类型: {analyst_types}")
+                print(f"[DEBUG] 配置参数: {config}")
                 graph = TradingAgentsGraph(
                     selected_analysts=analyst_types,
                     config=config,
                     debug=True
                 )
+                print(f"[DEBUG] TradingAgentsGraph初始化成功")
                 self.add_api_log("response", "交易代理系统初始化成功")
             except Exception as e:
+                print(f"[DEBUG] TradingAgentsGraph初始化失败: {str(e)}")
+                print(f"[DEBUG] 错误类型: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 self.add_api_log("error", f"初始化TradingAgentsGraph失败: {str(e)}")
                 raise e
             
@@ -446,10 +462,19 @@ class TradingAgentsStreamlitApp:
             
             # 获取初始状态
             try:
+                print(f"[DEBUG] 开始创建初始状态...")
+                print(f"[DEBUG] 股票代码: {ticker}, 分析日期: {analysis_date}")
                 init_state = graph.propagator.create_initial_state(ticker, analysis_date)
                 args = graph.propagator.get_graph_args()
+                print(f"[DEBUG] 初始状态创建成功")
+                print(f"[DEBUG] 初始状态内容: {list(init_state.keys()) if hasattr(init_state, 'keys') else type(init_state)}")
+                print(f"[DEBUG] 图参数: {args}")
                 self.add_api_log("response", "初始分析状态创建成功")
             except Exception as e:
+                print(f"[DEBUG] 创建初始状态失败: {str(e)}")
+                print(f"[DEBUG] 错误类型: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 self.add_api_log("error", f"创建初始状态失败: {str(e)}")
                 raise e
             
@@ -460,12 +485,10 @@ class TradingAgentsStreamlitApp:
             # 清空初始化显示，开始实际分析
             progress_placeholder.empty()
             
-            # 创建分析过程的显示容器
+            # 创建简化的分析过程显示容器
             with status_placeholder.container():
                 st.success("🔄 分析正在进行中...")
-                analysis_progress = st.progress(0.0)
-                current_step = st.empty()
-                agent_status_display = st.empty()
+                st.info("💡 实时状态和详细信息请查看右侧状态面板")
             
             # 流式处理分析
             step_count = 0
@@ -473,56 +496,88 @@ class TradingAgentsStreamlitApp:
             last_update_time = time.time()
             
             try:
+                print(f"[DEBUG] 开始流式分析处理...")
                 self.add_api_log("info", "开始流式分析处理...")
+                
+                stream_count = 0
                 for chunk in graph.graph.stream(init_state, **args):
+                    stream_count += 1
+                    print(f"[DEBUG] 接收到流数据块 #{stream_count}: {list(chunk.keys()) if hasattr(chunk, 'keys') else type(chunk)}")
+                    
+                    # 详细记录每个chunk的内容长度
+                    if hasattr(chunk, 'keys'):
+                        for key, value in chunk.items():
+                            if isinstance(value, str):
+                                print(f"[DEBUG]   - {key}: {len(value)} 字符")
+                            elif value is not None:
+                                print(f"[DEBUG]   - {key}: {type(value).__name__}")
+                            else:
+                                print(f"[DEBUG]   - {key}: None")
+                    
                     if st.session_state.stop_analysis:
+                        print(f"[DEBUG] 分析被用户停止")
                         self.add_api_log("warning", "分析被用户停止")
                         break
                         
                     step_count += 1
+                    print(f"[DEBUG] 处理步骤 {step_count} 开始")
                     
                     # 记录流处理步骤
                     if step_count % 10 == 0:  # 每10步记录一次
+                        print(f"[DEBUG] 处理步骤 {step_count}, 总流数据块: {stream_count}")
                         self.add_api_log("info", f"处理步骤 {step_count}, 进度 {min((step_count / total_expected_steps) * 95, 95):.1f}%")
                     
+                    print(f"[DEBUG] 开始更新报告部分...")
                     # 更新报告部分
-                    self._update_reports_from_chunk(chunk)
+                    try:
+                        self._update_reports_from_chunk(chunk)
+                        print(f"[DEBUG] 报告部分更新完成")
+                    except Exception as e:
+                        print(f"[DEBUG] 更新报告部分失败: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
                     
+                    print(f"[DEBUG] 开始更新代理状态...")
                     # 更新代理状态
-                    self._update_agent_status_from_chunk(chunk)
+                    try:
+                        self._update_agent_status_from_chunk(chunk)
+                        print(f"[DEBUG] 代理状态更新完成")
+                    except Exception as e:
+                        print(f"[DEBUG] 更新代理状态失败: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
                     
                     # 计算进度（最多到95%，留5%给最终处理）
                     progress = min((step_count / total_expected_steps) * 95, 95)
                     st.session_state.analysis_progress = progress
+                    print(f"[DEBUG] 进度更新为: {progress:.1f}%")
                     
-                    # 限制UI更新频率（每0.5秒更新一次）
+                    # 限制状态更新频率（每1秒更新一次，减少UI刷新频率）
                     current_time = time.time()
-                    if current_time - last_update_time > 0.5:
-                        analysis_progress.progress(progress / 100.0)
-                        current_step.text(f"步骤 {step_count} | {st.session_state.current_status}")
+                    if current_time - last_update_time > 1.0:
+                        print(f"[DEBUG] 更新UI状态信息...")
+                        # 触发右侧面板的状态更新（通过session state变化）
+                        st.session_state.last_step_info = f"步骤 {step_count} | {st.session_state.current_status}"
                         
-                        # 更新代理状态显示
-                        with agent_status_display.container():
-                            completed_agents = sum(1 for status in st.session_state.agent_statuses.values() if status == "已完成")
-                            total_agents = len(st.session_state.agent_statuses)
-                            
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("已完成代理", f"{completed_agents}/{total_agents}")
-                            with col2:
-                                st.metric("当前进度", f"{progress:.1f}%")
-                            with col3:
-                                active_agent = next(
-                                    (agent for agent, status in st.session_state.agent_statuses.items() if status == "进行中"),
-                                    "无"
-                                )
-                                st.metric("活跃代理", active_agent)
+                        # 强制页面重新渲染以更新右侧状态面板
+                        if step_count % 5 == 0:  # 每5步更新一次UI
+                            # print(f"[DEBUG] 触发页面重新渲染 (st.rerun)")
+                            pass # st.rerun()
                         
                         last_update_time = current_time
+                        print(f"[DEBUG] UI状态信息更新完成")
+                    
+                    print(f"[DEBUG] 处理步骤 {step_count} 完成，等待下一个流数据块...")
                 
+                print(f"[DEBUG] 流式分析循环结束")
+                print(f"[DEBUG] 流式分析完成，总共处理 {step_count} 步，流数据块: {stream_count}")
                 self.add_api_log("response", f"流式分析完成，总共处理 {step_count} 步")
                 
             except Exception as e:
+                print(f"[DEBUG] 分析流处理失败: {str(e)}")
+                print(f"[DEBUG] 错误类型: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 self.add_api_log("error", f"分析流处理失败: {str(e)}")
                 raise e
             
@@ -535,8 +590,9 @@ class TradingAgentsStreamlitApp:
                 st.session_state.current_status = "✅ 所有分析已完成"
                 
                 # 最终状态更新
-                analysis_progress.progress(1.0)
-                current_step.text("🎉 分析成功完成！")
+                with status_placeholder.container():
+                    st.progress(1.0)
+                    st.success("🎉 分析成功完成！")
                 
                 # 保存分析结果
                 try:
@@ -584,15 +640,20 @@ class TradingAgentsStreamlitApp:
                     st.text(f"错误类型: {type(e).__name__}")
                     st.text(f"错误信息: {str(e)}")
                     
+                    # 在控制台显示完整堆栈跟踪
+                    print_exception_details(e, "Streamlit分析过程")
+                    
                     st.markdown("**可能的解决方案:**")
                     st.markdown("1. 检查网络连接")
                     st.markdown("2. 验证LLM API密钥配置")
                     st.markdown("3. 确认`llm_provider.json`文件格式正确")
                     st.markdown("4. 检查股票代码是否有效")
                     st.markdown("5. 尝试使用较少的分析师或较低的研究深度")
+                    st.markdown("6. 查看终端控制台获取完整错误堆栈信息")
             
             return False
         finally:
+            print(f"[DEBUG] 分析线程的finally块已执行")
             st.session_state.analysis_running = False
             st.session_state.analysis_starting = False
     
@@ -702,12 +763,55 @@ class TradingAgentsStreamlitApp:
 
 def main():
     """主函数 - 创建 Streamlit 应用"""
+    # 启用全局错误处理
+    setup_error_handling(enable_debug=True)
+    
     st.set_page_config(
         page_title="TradingAgents - 多代理LLM金融交易框架",
         page_icon="🚀",
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+    # 添加自定义CSS样式
+    st.markdown("""
+    <style>
+    /* 右侧状态面板样式 */
+    .stColumns > div:last-child {
+        padding-left: 1rem;
+        border-left: 2px solid #f0f2f6;
+    }
+    
+    /* 状态面板标题样式 */
+    .status-panel-header {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    
+    /* 进度条容器样式 */
+    .progress-container {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .stColumns > div:last-child {
+            border-left: none;
+            border-top: 2px solid #f0f2f6;
+            padding-left: 0;
+            padding-top: 1rem;
+            margin-top: 1rem;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # 初始化应用
     app = TradingAgentsStreamlitApp()
@@ -971,158 +1075,91 @@ def render_new_analysis_page(app):
     """渲染新建分析页面"""
     st.header("🆕 新建分析")
     
-    # 如果没有开始分析，显示提示信息
-    if st.session_state.analysis_progress == 0 and not st.session_state.analysis_running and not st.session_state.get('analysis_starting', False):
-        st.info("👈 请在左侧控制面板中配置分析参数并开始分析")
+    # 创建左右分栏布局
+    main_col, status_col = st.columns([2, 1])
     
-    # 如果正在启动，显示启动状态
-    elif st.session_state.get('analysis_starting', False) and not st.session_state.analysis_running:
-        st.warning("⏳ 分析正在启动中，请稍候...")
-        with st.spinner("正在初始化分析系统..."):
-            # 显示启动提示
-            st.info("🚀 系统正在准备分析环境，这可能需要几秒钟时间")
+    # 右侧状态面板 - 始终显示
+    with status_col:
+        render_status_panel(app)
     
-    # 主内容区域 - 全宽显示实时状态和分析结果
-    if st.session_state.analysis_progress > 0 or st.session_state.analysis_running:
-        st.subheader("📊 实时状态")
+    # 左侧主内容区域
+    with main_col:
+        # 如果没有开始分析，显示提示信息
+        if st.session_state.analysis_progress == 0 and not st.session_state.analysis_running and not st.session_state.get('analysis_starting', False):
+            st.info("👈 请在左侧控制面板中配置分析参数并开始分析")
+            return
         
-        # 创建三列布局显示关键指标
-        col1, col2, col3 = st.columns(3)
+        # 如果正在启动，显示启动状态
+        elif st.session_state.get('analysis_starting', False) and not st.session_state.analysis_running:
+            st.warning("⏳ 分析正在启动中，请稍候...")
+            with st.spinner("正在初始化分析系统..."):
+                # 显示启动提示
+                st.info("🚀 系统正在准备分析环境，这可能需要几秒钟时间")
+            return
         
-        with col1:
-            st.metric(
-                "分析进度", 
-                f"{st.session_state.analysis_progress:.1f}%",
-                delta=None
-            )
-        
-        with col2:
-            completed_agents = sum(1 for status in st.session_state.agent_statuses.values() if status == "已完成")
-            total_agents = len(st.session_state.agent_statuses)
-            st.metric(
-                "已完成代理", 
-                f"{completed_agents}/{total_agents}",
-                delta=None
-            )
-        
-        with col3:
-            # 当前活跃代理
-            active_agent = next(
-                (agent for agent, status in st.session_state.agent_statuses.items() if status == "进行中"),
-                "无"
-            )
-            st.metric(
-                "当前代理", 
-                active_agent if active_agent != "无" else "待机",
-                delta=None
-            )
-        
-        # 进度条
-        progress_container = st.container()
-        with progress_container:
-            st.progress(st.session_state.analysis_progress / 100.0)
-            if st.session_state.current_status:
-                st.caption(st.session_state.current_status)
-        
-        # 代理状态展示 - 使用可折叠区域
-        with st.expander("🤖 详细代理状态", expanded=True):
-            st.markdown(app.format_agent_status_display())
-        
-        # 实时日志展示区域
-        if st.session_state.get('show_logs', True):
-            with st.expander("📋 实时日志", expanded=False):
-                # 日志控制按钮
-                col1, col2, col3 = st.columns([1, 1, 2])
+        # 分析结果展示区域
+        if any(st.session_state.report_sections.values()):
+            st.header("📈 分析结果")
+            
+            # 添加分析摘要卡片
+            with st.container():
+                col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    if st.button("🗑️ 清空日志", key="clear_logs_btn"):
-                        app.clear_api_logs()
-                        st.rerun()
+                    completed_reports = sum(1 for content in st.session_state.report_sections.values() if content)
+                    total_reports = len(st.session_state.report_sections)
+                    st.metric("生成报告", f"{completed_reports}/{total_reports}")
                 
                 with col2:
-                    show_logs = st.checkbox("显示日志", value=st.session_state.get('show_logs', True), key="show_logs_checkbox")
-                    st.session_state.show_logs = show_logs
+                    total_content = sum(len(str(content)) for content in st.session_state.report_sections.values() if content)
+                    st.metric("总内容", f"{total_content:,} 字符")
                 
                 with col3:
-                    log_count = len(st.session_state.api_logs)
-                    st.caption(f"📊 当前日志条目: {log_count}")
+                    if st.session_state.current_ticker:
+                        st.metric("分析股票", st.session_state.current_ticker)
+                    else:
+                        st.metric("分析股票", "无")
                 
-                st.divider()
-                
-                # 日志内容显示
-                if st.session_state.api_logs:
-                    # 创建滚动的日志容器
-                    log_container = st.container()
-                    with log_container:
-                        log_text = app.format_api_logs()
-                        st.markdown(log_text)
-                        
-                        # 自动滚动提示
-                        if len(st.session_state.api_logs) > 10:
-                            st.caption("💡 提示: 日志会自动显示最新的50条记录")
-                else:
-                    st.info("暂无日志记录")
-    
-    # 分析结果展示区域
-    if any(st.session_state.report_sections.values()):
-        st.header("📈 分析结果")
-        
-        # 添加分析摘要卡片
-        with st.container():
-            col1, col2, col3, col4 = st.columns(4)
+                with col4:
+                    if st.session_state.current_date:
+                        st.metric("分析日期", st.session_state.current_date)
+                    else:
+                        st.metric("分析日期", "无")
             
-            with col1:
-                completed_reports = sum(1 for content in st.session_state.report_sections.values() if content)
-                total_reports = len(st.session_state.report_sections)
-                st.metric("生成报告", f"{completed_reports}/{total_reports}")
+            st.divider()
             
-            with col2:
-                total_content = sum(len(str(content)) for content in st.session_state.report_sections.values() if content)
-                st.metric("总内容", f"{total_content:,} 字符")
+            # 使用选项卡展示不同报告
+            tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+                "🏢 市场分析", "💬 社交情绪", "📰 新闻分析", "📊 基本面",
+                "🎯 研究决策", "💼 交易计划", "📈 最终决策", "📋 完整报告"
+            ])
             
-            with col3:
-                if st.session_state.current_ticker:
-                    st.metric("分析股票", st.session_state.current_ticker)
-                else:
-                    st.metric("分析股票", "无")
+            with tab1:
+                st.markdown(app.format_report_section("market_report", "🏢 市场分析"))
             
-            with col4:
-                if st.session_state.current_date:
-                    st.metric("分析日期", st.session_state.current_date)
-                else:
-                    st.metric("分析日期", "无")
-        
-        st.divider()
-        
-        # 使用选项卡展示不同报告
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-            "🏢 市场分析", "💬 社交情绪", "📰 新闻分析", "📊 基本面",
-            "🎯 研究决策", "💼 交易计划", "📈 最终决策", "📋 完整报告"
-        ])
-        
-        with tab1:
-            st.markdown(app.format_report_section("market_report", "🏢 市场分析"))
-        
-        with tab2:
-            st.markdown(app.format_report_section("sentiment_report", "💬 社交情绪分析"))
-        
-        with tab3:
-            st.markdown(app.format_report_section("news_report", "📰 新闻分析"))
-        
-        with tab4:
-            st.markdown(app.format_report_section("fundamentals_report", "📊 基本面分析"))
-        
-        with tab5:
-            st.markdown(app.format_report_section("investment_plan", "🎯 研究团队决策"))
-        
-        with tab6:
-            st.markdown(app.format_report_section("trader_investment_plan", "💼 交易团队计划"))
-        
-        with tab7:
-            st.markdown(app.format_report_section("final_trade_decision", "📈 最终交易决策"))
-        
-        with tab8:
-            st.markdown(app.format_final_report())
+            with tab2:
+                st.markdown(app.format_report_section("sentiment_report", "💬 社交情绪分析"))
+            
+            with tab3:
+                st.markdown(app.format_report_section("news_report", "📰 新闻分析"))
+            
+            with tab4:
+                st.markdown(app.format_report_section("fundamentals_report", "📊 基本面分析"))
+            
+            with tab5:
+                st.markdown(app.format_report_section("investment_plan", "🎯 研究团队决策"))
+            
+            with tab6:
+                st.markdown(app.format_report_section("trader_investment_plan", "💼 交易团队计划"))
+            
+            with tab7:
+                st.markdown(app.format_report_section("final_trade_decision", "📈 最终交易决策"))
+            
+            with tab8:
+                st.markdown(app.format_final_report())
+        else:
+            # 如果没有分析结果，显示占位信息
+            st.info("📊 分析结果将在分析完成后显示在此处")
 
 def render_historical_analysis_page(app):
     """渲染历史分析页面"""
@@ -1242,6 +1279,94 @@ def render_historical_analysis_page(app):
         
         with tab8:
             st.markdown(app.format_historical_final_report())
+
+def render_status_panel(app):
+    """渲染右侧状态监控面板"""
+    st.header("📊 实时状态监控")
+    
+    # 分析进度概览
+    with st.container():
+        st.subheader("🚀 分析进度")
+        
+        # 进度条
+        progress_value = st.session_state.analysis_progress / 100.0
+        st.progress(progress_value)
+        
+        # 当前状态和步骤信息
+        if st.session_state.current_status:
+            st.caption(st.session_state.current_status)
+        
+        # 显示步骤信息（如果存在）
+        if hasattr(st.session_state, 'last_step_info') and st.session_state.last_step_info:
+            st.info(st.session_state.last_step_info)
+        
+        # 进度指标
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(
+                "分析进度", 
+                f"{st.session_state.analysis_progress:.1f}%"
+            )
+        with col2:
+            completed_agents = sum(1 for status in st.session_state.agent_statuses.values() if status == "已完成")
+            total_agents = len(st.session_state.agent_statuses)
+            st.metric(
+                "已完成代理", 
+                f"{completed_agents}/{total_agents}"
+            )
+    
+    # 当前活跃代理
+    with st.container():
+        st.subheader("🤖 当前代理")
+        active_agent = next(
+            (agent for agent, status in st.session_state.agent_statuses.items() if status == "进行中"),
+            "无"
+        )
+        if active_agent != "无":
+            st.success(f"🔄 {active_agent}")
+        else:
+            # 根据分析状态显示不同信息
+            if st.session_state.get('analysis_starting', False):
+                st.warning("⏳ 正在启动分析系统...")
+            elif st.session_state.analysis_running:
+                st.info("🔄 正在进行分析...")
+            elif st.session_state.analysis_progress > 0:
+                st.success("✅ 分析已完成")
+            else:
+                st.info("⏸️ 等待开始分析")
+    
+    # 分析参数信息（如果有的话）
+    if st.session_state.current_ticker or st.session_state.current_date:
+        with st.container():
+            st.subheader("📋 分析参数")
+            if st.session_state.current_ticker:
+                st.text(f"📈 股票代码: {st.session_state.current_ticker}")
+            if st.session_state.current_date:
+                st.text(f"📅 分析日期: {st.session_state.current_date}")
+    
+    # 代理状态详情
+    with st.expander("📋 详细代理状态", expanded=False):
+        st.markdown(app.format_agent_status_display())
+    
+    # 实时日志
+    if st.session_state.get('show_logs', True):
+        with st.expander("📋 实时日志", expanded=False):
+            # 日志控制
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🗑️ 清空日志", key="status_panel_clear_logs"):
+                    app.clear_api_logs()
+                    st.rerun()
+            with col2:
+                log_count = len(st.session_state.api_logs)
+                st.caption(f"📊 日志: {log_count} 条")
+            
+            # 日志内容
+            if st.session_state.api_logs:
+                log_text = app.format_api_logs()
+                st.markdown(log_text)
+            else:
+                st.info("暂无日志记录")
 
 def render_system_status_page(app):
     """渲染系统状态页面"""

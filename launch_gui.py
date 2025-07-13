@@ -9,6 +9,19 @@ import sys
 import os
 from pathlib import Path
 
+# 导入错误处理模块
+try:
+    from error_handler import setup_error_handling, print_exception_details
+except ImportError:
+    # 如果错误处理模块不存在，提供基本的错误处理
+    def setup_error_handling(enable_debug=True):
+        pass
+    def print_exception_details(e, context=None):
+        import traceback
+        print(f"\n❌ 错误: {str(e)}")
+        print("完整堆栈跟踪:")
+        traceback.print_exc()
+
 def check_streamlit_installation():
     """检查 Streamlit 是否已安装"""
     try:
@@ -78,64 +91,78 @@ def launch_gui_app():
         
     except subprocess.CalledProcessError as e:
         print(f"❌ 启动 GUI 应用失败: {e}")
+        print_exception_details(e, "GUI应用启动")
         return False
     except KeyboardInterrupt:
         print("\n⏹️  应用已停止")
         return True
+    except Exception as e:
+        print(f"❌ 启动过程中发生未知错误: {e}")
+        print_exception_details(e, "GUI应用启动")
+        return False
     
     return True
 
 def main():
     """主函数"""
+    # 启用全局错误处理
+    setup_error_handling(enable_debug=True)
+    
     print("🚀 TradingAgents GUI 启动器")
     print("=" * 50)
     
-    # 检查当前工作目录
-    current_dir = Path.cwd()
-    app_file = current_dir / "streamlit_app.py"
-    
-    if not app_file.exists():
-        print(f"❌ 在当前目录找不到 streamlit_app.py 文件")
-        print(f"📁 当前目录: {current_dir}")
-        print("💡 请确保在 TradingAgents 项目根目录运行此脚本")
-        sys.exit(1)
-    
-    # 检查 Streamlit 安装
-    if not check_streamlit_installation():
-        print("📦 正在安装 Streamlit...")
-        if not install_dependencies():
-            print("❌ 无法安装依赖包，请手动安装:")
-            print("   pip install streamlit")
-            sys.exit(1)
-    
-    # 检查配置文件
-    if not check_config_files():
-        print("\n💡 配置文件设置指南:")
-        print("1. 复制示例配置文件:")
-        print("   cp llm_provider.json.example llm_provider.json")
-        print("2. 编辑 llm_provider.json 配置您的 LLM 提供商")
-        print("3. (可选) 创建 .env 文件设置 API 密钥")
+    try:
+        # 检查当前工作目录
+        current_dir = Path.cwd()
+        app_file = current_dir / "streamlit_app.py"
         
-        response = input("\n是否忽略配置检查继续启动? (y/N): ").strip().lower()
-        if response != 'y' and response != 'yes':
-            print("❌ 启动已取消")
+        if not app_file.exists():
+            print(f"❌ 在当前目录找不到 streamlit_app.py 文件")
+            print(f"📁 当前目录: {current_dir}")
+            print("💡 请确保在 TradingAgents 项目根目录运行此脚本")
             sys.exit(1)
-        print("⚠️  忽略配置检查，继续启动...")
-    
-    # 显示启动信息
-    print("\n📋 启动信息:")
-    print(f"📁 工作目录: {current_dir}")
-    print(f"🐍 Python 版本: {sys.version.split()[0]}")
-    print(f"📱 应用文件: {app_file}")
-    
-    # 启动应用
-    print("\n" + "="*50)
-    success = launch_gui_app()
-    
-    if success:
-        print("\n✅ 应用已成功启动和停止")
-    else:
-        print("\n❌ 应用启动失败")
+        
+        # 检查 Streamlit 安装
+        if not check_streamlit_installation():
+            print("📦 正在安装 Streamlit...")
+            if not install_dependencies():
+                print("❌ 无法安装依赖包，请手动安装:")
+                print("   pip install streamlit")
+                sys.exit(1)
+        
+        # 检查配置文件
+        if not check_config_files():
+            print("\n💡 配置文件设置指南:")
+            print("1. 复制示例配置文件:")
+            print("   cp llm_provider.json.example llm_provider.json")
+            print("2. 编辑 llm_provider.json 配置您的 LLM 提供商")
+            print("3. (可选) 创建 .env 文件设置 API 密钥")
+            
+            response = input("\n是否忽略配置检查继续启动? (y/N): ").strip().lower()
+            if response != 'y' and response != 'yes':
+                print("❌ 启动已取消")
+                sys.exit(1)
+            print("⚠️  忽略配置检查，继续启动...")
+        
+        # 显示启动信息
+        print("\n📋 启动信息:")
+        print(f"📁 工作目录: {current_dir}")
+        print(f"🐍 Python 版本: {sys.version.split()[0]}")
+        print(f"📱 应用文件: {app_file}")
+        
+        # 启动应用
+        print("\n" + "="*50)
+        success = launch_gui_app()
+        
+        if success:
+            print("\n✅ 应用已成功启动和停止")
+        else:
+            print("\n❌ 应用启动失败")
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"\n❌ 启动过程中发生错误: {str(e)}")
+        print_exception_details(e, "应用启动")
         sys.exit(1)
 
 if __name__ == "__main__":
